@@ -1,22 +1,25 @@
-Bay Aerials Sub Scheduler
+# Bay Aerials Sub Scheduler
+
 A live substitute coach scheduling app for Bay Aerials Gymnastics.
-What It Does
 
-Admin posts sub shifts — coaches get real SMS texts instantly
-Coaches log in with a personal code and claim open shifts
-Admin confirms subs — coach gets a confirmation text
-Every confirmed sub gets an automatic 8 AM reminder text the day of their shift
-Data persists in a real database — nothing resets on refresh
+## What It Does
+- Admin posts sub shifts — coaches get real SMS texts instantly
+- Coaches log in with a personal code and claim open shifts
+- Admin confirms subs — coach gets a confirmation text
+- Every confirmed sub gets an automatic 8 AM reminder text the day of their shift
+- Data persists in a real database — nothing resets on refresh
 
-Tech Stack
+## Tech Stack
+- **Next.js** — frontend + API routes
+- **Supabase** — database
+- **Twilio** — SMS notifications
+- **Vercel** — hosting + cron jobs
 
-Next.js — frontend + API routes
-Supabase — database
-Twilio — SMS notifications
-Vercel — hosting + cron jobs
+## Environment Variables
 
-Environment Variables
 Add these in Vercel → Settings → Environment Variables:
+
+```
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_SERVICE_KEY
@@ -27,7 +30,11 @@ TWILIO_AUTH_TOKEN
 TWILIO_FROM_NUMBER
 ADMIN_PHONE
 CRON_SECRET
-File Structure
+```
+
+## File Structure
+
+```
 pages/
   index.js          — Main app UI
   api/
@@ -43,9 +50,14 @@ public/
   logo.png          — Bay Aerials logo
 vercel.json         — Cron schedule (8 AM Pacific daily)
 package.json
-Database Setup (Supabase)
+```
+
+## Database Setup (Supabase)
+
 Run this SQL in the Supabase SQL Editor:
-sqlcreate table shifts (
+
+```sql
+create table shifts (
   id uuid primary key default gen_random_uuid(),
   instructor_name text not null,
   date date not null,
@@ -75,12 +87,27 @@ alter table sms_log enable row level security;
 
 create policy "Public can read shifts"
   on shifts for select using (true);
-Cron Reminder Schedule
+```
+
+## Cron Reminder Schedule
+
 Runs daily at 8 AM Pacific (4 PM UTC):
-json{
+
+```json
+{
   "crons": [{ "path": "/api/cron", "schedule": "0 16 * * *" }]
 }
-SMS Flow
-EventWho gets textedShift postedAll eligible coachesCoach claimsAdmin (Johnny)Admin confirmsSub coach8 AM day-ofSub coach reminder
+```
 
-Bay Aerials Gymnastics — Sub Ops v1.0
+## SMS Flow
+
+| Event | Who gets texted |
+|-------|----------------|
+| Shift posted | All eligible coaches |
+| Coach claims | Admin (Johnny) |
+| Admin confirms | Sub coach |
+| 8 AM day-of | Sub coach reminder |
+
+---
+
+*Bay Aerials Gymnastics — Sub Ops v1.0*
