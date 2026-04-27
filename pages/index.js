@@ -354,11 +354,12 @@ function Logo(){
   );
 }
 
+// ── PART 2 CONTINUES BELOW ──
 export default function App(){
   const [view,setView]=useState("coach");
-const [adminUnlocked,setAdminUnlocked]=useState(false);
-const [adminPass,setAdminPass]=useState("");
-const [adminErr,setAdminErr]=useState("");
+  const [adminUnlocked,setAdminUnlocked]=useState(false);
+  const [adminPass,setAdminPass]=useState("");
+  const [adminErr,setAdminErr]=useState("");
   const [adminTab,setAdminTab]=useState("calendar");
   const [shifts,setShifts]=useState([]);
   const [smsLog,setSmsLog]=useState([]);
@@ -383,7 +384,6 @@ const [adminErr,setAdminErr]=useState("");
   const coaches=useMemo(()=>buildCoaches(RAW_SCHEDULE),[]);
   const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
 
-  // Fetch coaches from API (Supabase in production, simulated here)
   const fetchDbCoaches=useCallback(async()=>{
     setLoadingCoaches(true);
     try{
@@ -391,7 +391,6 @@ const [adminErr,setAdminErr]=useState("");
       const data=await res.json();
       if(res.ok&&Array.isArray(data))setDbCoaches(data);
     }catch(e){
-      // Fallback to STAFF_CONTACTS for prototype
       const fallback=Object.entries(STAFF_CONTACTS).map(([name,ct],i)=>({id:i+1,name,code:(fn(name).slice(0,3)+String(i+1).padStart(2,"0")).toUpperCase(),phone:ct.phone,email:ct.email,active:true}));
       setDbCoaches(fallback);
     }finally{setLoadingCoaches(false);}
@@ -406,6 +405,14 @@ const [adminErr,setAdminErr]=useState("");
   const iSched=useMemo(()=>form.instructorName?RAW_SCHEDULE.filter(r=>r.name===form.instructorName):[],[form.instructorName]);
   const aDays=useMemo(()=>[...new Set(iSched.map(r=>r.day))].sort((a,b)=>DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b)),[iSched]);
   const cOnDay=useMemo(()=>iSched.filter(r=>r.day===form.day).map(r=>({time:r.time,cls:r.cls})),[iSched,form.day]);
+
+  const handleAdminLogin=async()=>{
+    try{
+      const res=await fetch("/api/admin-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:adminPass})});
+      if(res.ok){setAdminUnlocked(true);setView("admin");setAdminErr("");}
+      else setAdminErr("Incorrect password. Try again.");
+    }catch(e){setAdminErr("Connection error. Try again.");}
+  };
 
   const postShift=()=>{
     if(!form.instructorName||!form.cls)return;
@@ -429,30 +436,17 @@ const [adminErr,setAdminErr]=useState("");
 
   const addCoach=async()=>{
     if(!coachForm.name)return;
-    try{
-      const res=await fetch("/api/coaches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(coachForm)});
-      if(res.ok){await fetchDbCoaches();setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});}
-    }catch(e){
-      const prefix=coachForm.name.split(", ")[1]?.slice(0,3).toUpperCase()||coachForm.name.slice(0,3).toUpperCase();
-      const code=`${prefix}${Math.floor(Math.random()*900)+100}`;
-      setDbCoaches(p=>[...p,{id:Date.now(),...coachForm,code,active:true}]);
-      setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});
-    }
+    try{const res=await fetch("/api/coaches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(coachForm)});if(res.ok){await fetchDbCoaches();setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""}); }}
+    catch(e){const prefix=coachForm.name.split(", ")[1]?.slice(0,3).toUpperCase()||coachForm.name.slice(0,3).toUpperCase();const code=`${prefix}${Math.floor(Math.random()*900)+100}`;setDbCoaches(p=>[...p,{id:Date.now(),...coachForm,code,active:true}]);setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});}
   };
-
   const updateCoach=async(id,updates)=>{
-    try{
-      await fetch("/api/coaches",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...updates})});
-      await fetchDbCoaches();
-    }catch(e){setDbCoaches(p=>p.map(c=>c.id===id?{...c,...updates}:c));}
+    try{await fetch("/api/coaches",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...updates})});await fetchDbCoaches();}
+    catch(e){setDbCoaches(p=>p.map(c=>c.id===id?{...c,...updates}:c));}
     setEditCoach(null);
   };
-
   const deleteCoach=async(id)=>{
-    try{
-      await fetch(`/api/coaches?id=${id}`,{method:"DELETE"});
-      await fetchDbCoaches();
-    }catch(e){setDbCoaches(p=>p.filter(c=>c.id!==id));}
+    try{await fetch(`/api/coaches?id=${id}`,{method:"DELETE"});await fetchDbCoaches();}
+    catch(e){setDbCoaches(p=>p.filter(c=>c.id!==id));}
   };
 
   const getPrintData=day=>{
@@ -475,45 +469,28 @@ const [adminErr,setAdminErr]=useState("");
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={()=>setShowProtocol(true)} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:C.radiusSm,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📋 Protocol</button>
-          <button onClick={()=>adminUnlocked?setView("admin"):setView("adminlogin")} ...>Admin</button>
+          <button onClick={()=>adminUnlocked?setView("admin"):setView("adminlogin")} style={{background:view==="admin"?C.bg3:"transparent",color:view==="admin"?C.text:C.text2,border:`1px solid ${view==="admin"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="admin"?600:400}}>🔐 Admin</button>
           <button onClick={()=>setView("coach")} style={{background:view==="coach"?C.bg3:"transparent",color:view==="coach"?C.text:C.text2,border:`1px solid ${view==="coach"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="coach"?600:400}}>Coach login</button>
         </div>
       </div>
 
+      {/* ADMIN LOGIN */}
+      {view==="adminlogin"&&(
+        <div style={{maxWidth:300,margin:"0 auto",paddingTop:"1rem"}}>
+          <div style={{...card,textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:8}}>🔐</div>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Admin Access</div>
+            <div style={{fontSize:12,color:C.text2,marginBottom:14}}>Enter your admin password to continue.</div>
+            <input type="password" value={adminPass} onChange={e=>setAdminPass(e.target.value)} placeholder="Password" onKeyDown={e=>e.key==="Enter"&&handleAdminLogin()} style={{...inp,textAlign:"center",fontSize:15,marginBottom:8}}/>
+            {adminErr&&<div style={{color:C.redText,fontSize:12,marginBottom:8}}>{adminErr}</div>}
+            <button onClick={handleAdminLogin} style={{width:"100%",padding:8,background:"#2563eb",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:600,cursor:"pointer",fontSize:13,marginBottom:10}}>Unlock Admin</button>
+            <button onClick={()=>setView("coach")} style={{background:"transparent",border:"none",color:C.text2,fontSize:12,cursor:"pointer"}}>← Back to Coach login</button>
+          </div>
+        </div>
+      )}
+
       {/* ADMIN */}
-{view==="adminlogin"&&(
-  <div style={{maxWidth:300,margin:"0 auto",paddingTop:"1rem"}}>
-    <div style={{...card,textAlign:"center"}}>
-      <div style={{fontSize:28,marginBottom:8}}>🔐</div>
-      <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Admin Access</div>
-      <div style={{fontSize:12,color:C.text2,marginBottom:14}}>Enter your admin password to continue.</div>
-      <input
-        type="password"
-        value={adminPass}
-        onChange={e=>setAdminPass(e.target.value)}
-        placeholder="Password"
-        onKeyDown={async e=>{
-          if(e.key==="Enter"){
-            const res=await fetch("/api/admin-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:adminPass})});
-            if(res.ok){setAdminUnlocked(true);setView("admin");setAdminErr("");}
-            else setAdminErr("Incorrect password");
-          }
-        }}
-        style={{...inp,textAlign:"center",fontSize:15,marginBottom:8}}
-      />
-      {adminErr&&<div style={{color:C.redText,fontSize:12,marginBottom:8}}>{adminErr}</div>}
-      <button onClick={async()=>{
-        const res=await fetch("/api/admin-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:adminPass})});
-        if(res.ok){setAdminUnlocked(true);setView("admin");setAdminErr("");}
-        else setAdminErr("Incorrect password");
-      }} style={{width:"100%",padding:8,background:"#2563eb",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:600,cursor:"pointer",fontSize:13}}>
-        Unlock Admin
-      </button>
-      <button onClick={()=>setView("coach")} style={{marginTop:10,background:"transparent",border:"none",color:C.text2,fontSize:12,cursor:"pointer"}}>← Back to Coach login</button>
-    </div>
-  </div>
-)}      
-{view==="admin"&&(
+      {view==="admin"&&(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
             {[["Open",shifts.filter(s=>s.status==="open").length,C.yellow,C.yellowText,C.yellowBorder],["Claimed",shifts.filter(s=>s.status==="claimed").length,C.blue,C.blueText,C.blueBorder],["Confirmed",shifts.filter(s=>s.status==="confirmed").length,C.green,C.greenText,C.greenBorder]].map(([l,v,bg,tc,bc])=>(
@@ -523,7 +500,6 @@ const [adminErr,setAdminErr]=useState("");
               </div>
             ))}
           </div>
-
           <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
             <Tab label="📅 Calendar" id="calendar"/>
             <Tab label="📋 Shifts" id="shifts"/>
@@ -775,7 +751,7 @@ const [adminErr,setAdminErr]=useState("");
               <div style={{fontSize:11,color:C.text2,background:C.bg2,borderRadius:C.radiusSm,padding:"7px 10px"}}>A unique login code will be auto-generated.</div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
-              <button onClick={()=>{setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""})} } style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
+              <button onClick={()=>{setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});}} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
               <button onClick={addCoach} disabled={!coachForm.name} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:coachForm.name?"#16a34a":"#d1d5db",color:coachForm.name?"#fff":"#9ca3af",fontWeight:600,cursor:coachForm.name?"pointer":"default",fontSize:12}}>Add Coach</button>
             </div>
           </div>
