@@ -1,6 +1,18 @@
 import { supabaseAdmin } from '../../lib/supabase';
 import { sendSMS } from '../../lib/twilio';
 
+function isWithinTextingHours() {
+  const now = new Date();
+  const pacificHour = parseInt(
+    now.toLocaleString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      hour: 'numeric',
+      hour12: false,
+    })
+  );
+  return pacificHour >= 8 && pacificHour < 20;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -39,9 +51,9 @@ export default async function handler(req, res) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // Text admin
+    // Text admin only within texting hours
     const adminPhone = process.env.ADMIN_PHONE;
-    if (adminPhone) {
+    if (adminPhone && isWithinTextingHours()) {
       await sendSMS(adminPhone,
         `Bay Aerials: ${coach_name} claimed the sub shift!\n` +
         `📅 ${data.day} ${data.time} – ${data.cls}\n` +
@@ -64,14 +76,14 @@ export default async function handler(req, res) {
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // Get coach phone from coaches table
+    // Text coach confirmation only within texting hours
     const { data: coach } = await supabaseAdmin
       .from('coaches')
       .select('phone')
       .eq('name', data.claimed_by_name)
       .single();
 
-    if (coach?.phone) {
+    if (coach?.phone && isWithinTextingHours()) {
       await sendSMS(coach.phone,
         `Bay Aerials: You're confirmed as sub! ✅\n` +
         `📅 ${data.day} ${data.time}\n` +
