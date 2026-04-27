@@ -1,58 +1,58 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 
 const C = {
-  bg: "#ffffff", bg2: "#f9fafb", bg3: "#f3f4f6",
-  blue: "#eff6ff", blueText: "#1d4ed8", blueBorder: "#93c5fd",
-  green: "#f0fdf4", greenText: "#166534", greenBorder: "#86efac",
-  yellow: "#fffbeb", yellowText: "#92400e", yellowBorder: "#fcd34d",
-  red: "#fef2f2", redText: "#991b1b", redBorder: "#fca5a5",
-  border: "#e5e7eb", border2: "#d1d5db",
-  text: "#111827", text2: "#6b7280", text3: "#9ca3af",
-  radius: "8px", radiusSm: "6px",
+  bg:"#ffffff",bg2:"#f9fafb",bg3:"#f3f4f6",
+  blue:"#eff6ff",blueText:"#1d4ed8",blueBorder:"#93c5fd",
+  green:"#f0fdf4",greenText:"#166534",greenBorder:"#86efac",
+  yellow:"#fffbeb",yellowText:"#92400e",yellowBorder:"#fcd34d",
+  red:"#fef2f2",redText:"#991b1b",redBorder:"#fca5a5",
+  border:"#e5e7eb",border2:"#d1d5db",
+  text:"#111827",text2:"#6b7280",text3:"#9ca3af",
+  radius:"8px",radiusSm:"6px",
 };
 
-const card = { background: C.bg, borderRadius: C.radius, border: `1px solid ${C.border}`, padding: "1rem 1.25rem" };
-const pill = (bg, color, border) => ({ background: bg, color, border: `1px solid ${border}`, fontSize: 11, padding: "2px 8px", borderRadius: C.radiusSm, fontWeight: 600, whiteSpace: "nowrap", display: "inline-block" });
-const inp = { width: "100%", marginTop: 4, padding: "7px 10px", borderRadius: C.radiusSm, border: `1px solid ${C.border2}`, fontSize: 13, background: C.bg, color: C.text, boxSizing: "border-box" };
+const card={background:C.bg,borderRadius:C.radius,border:`1px solid ${C.border}`,padding:"1rem 1.25rem"};
+const pill=(bg,color,border)=>({background:bg,color,border:`1px solid ${border}`,fontSize:11,padding:"2px 8px",borderRadius:C.radiusSm,fontWeight:600,whiteSpace:"nowrap",display:"inline-block"});
+const inp={width:"100%",marginTop:4,padding:"7px 10px",borderRadius:C.radiusSm,border:`1px solid ${C.border2}`,fontSize:13,background:C.bg,color:C.text,boxSizing:"border-box"};
 
-const DAY_ORDER = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-const DAY_SHORT = { Sunday:"Sun", Monday:"Mon", Tuesday:"Tue", Wednesday:"Wed", Thursday:"Thu", Friday:"Fri", Saturday:"Sat" };
+const DAY_ORDER=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const DAY_SHORT={Sunday:"Sun",Monday:"Mon",Tuesday:"Tue",Wednesday:"Wed",Thursday:"Thu",Friday:"Fri",Saturday:"Sat"};
 
-const STAFF_CONTACTS = {
-  "Bryan, Julia":{ phone:"4083244023", email:"julia@bayaerials.com" },
-  "Cox, Monica":{ phone:"4158065663", email:"monicacox@bayaerials.com" },
-  "Dacoco, Jenna":{ phone:"6692613215", email:"jennadacoco@gmail.com" },
-  "Daza, Lessly":{ phone:"5599944173", email:"lesslypdaza21@gmail.com" },
-  "Dorwelo, Ian Don":{ phone:"4082755110", email:"idorwelo618@gmail.com" },
-  "Douden, Grace":{ phone:"5306807716", email:"gdouden11@gmail.com" },
-  "Esquivas, Mariana":{ phone:"5105655227", email:"marianaesquivias37@gmail.com" },
-  "Geronimo, Miguel":{ phone:"5102581723", email:"msgeronimo15@gmail.com" },
-  "Gould, Miriam":{ phone:"5103960104", email:"miriamgould@gmail.com" },
-  "Le, Nick":{ phone:"5103209799", email:"teck.nickle@gmail.com" },
-  "Legrande, Lawrence":{ phone:"4085081817", email:"Legrandelarry@icloud.com" },
-  "Leung, Tiffany":{ phone:"4158289168", email:"tiffanyleung3508@gmail.com" },
-  "Martinez, Shella":{ phone:"4082041588", email:"shellamartinez@yahoo.com" },
-  "Medina, Michael":{ phone:"4082205187", email:"michaeljesse1111@gmail.com" },
-  "Mehndiratta, Bhavika":{ phone:"5102574481", email:"bhavi@edustrong.com" },
-  "Miller, Sierra":{ phone:"6502811470", email:"sierra@bayaerials.com" },
-  "Nandanwar, Sahana":{ phone:"5106965936", email:"sahananandanwar77@gmail.com" },
-  "Nelms, Justine":{ phone:"5103649670", email:"justineeynelms@icloud.com" },
-  "Ong, Alicia":{ phone:"4154122355", email:"aradia@gmail.com" },
-  "Pacheco, Jenevieve":{ phone:"5107500926", email:"pachecojenevieve@gmail.com" },
-  "Phair, Anika":{ phone:"5109800821", email:"anikaphair@gmail.com" },
-  "Pichardo, Jocelin":{ phone:"5109432533", email:"jocepic111@gmail.com" },
-  "Porter, Ashley":{ phone:"4083347257", email:"ashleyzlporter@gmail.com" },
-  "Salas, Briana":{ phone:"8589253002", email:"brianssalas333@outlook.com" },
-  "Saxena, Ashir":{ phone:"5104949488", email:"ashirsax@gmail.com" },
-  "Templeton, Sophia":{ phone:"5107378434", email:"freckles.templeton@icloud.com" },
-  "Valdovinos, Andrea":{ phone:"4086617932", email:"andreavaldovinos.cm@gmail.com" },
-  "Valdovinos, Cristian":{ phone:"4086309128", email:"cvgiantz@gmail.com" },
-  "Yanez, Kalina":{ phone:"5109990581", email:"yankalina8@gmail.com" },
-  "Yee, Jasmine":{ phone:"5108949370", email:"jasmine.m.yee950@gmail.com" },
-  "Zamarripa, Liliana":{ phone:"5104029564", email:"ririana922@gmail.com" },
+const STAFF_CONTACTS={
+  "Bryan, Julia":{phone:"4083244023",email:"julia@bayaerials.com"},
+  "Cox, Monica":{phone:"4158065663",email:"monicacox@bayaerials.com"},
+  "Dacoco, Jenna":{phone:"6692613215",email:"jennadacoco@gmail.com"},
+  "Daza, Lessly":{phone:"5599944173",email:"lesslypdaza21@gmail.com"},
+  "Dorwelo, Ian Don":{phone:"4082755110",email:"idorwelo618@gmail.com"},
+  "Douden, Grace":{phone:"5306807716",email:"gdouden11@gmail.com"},
+  "Esquivas, Mariana":{phone:"5105655227",email:"marianaesquivias37@gmail.com"},
+  "Geronimo, Miguel":{phone:"5102581723",email:"msgeronimo15@gmail.com"},
+  "Gould, Miriam":{phone:"5103960104",email:"miriamgould@gmail.com"},
+  "Le, Nick":{phone:"5103209799",email:"teck.nickle@gmail.com"},
+  "Legrande, Lawrence":{phone:"4085081817",email:"Legrandelarry@icloud.com"},
+  "Leung, Tiffany":{phone:"4158289168",email:"tiffanyleung3508@gmail.com"},
+  "Martinez, Shella":{phone:"4082041588",email:"shellamartinez@yahoo.com"},
+  "Medina, Michael":{phone:"4082205187",email:"michaeljesse1111@gmail.com"},
+  "Mehndiratta, Bhavika":{phone:"5102574481",email:"bhavi@edustrong.com"},
+  "Miller, Sierra":{phone:"6502811470",email:"sierra@bayaerials.com"},
+  "Nandanwar, Sahana":{phone:"5106965936",email:"sahananandanwar77@gmail.com"},
+  "Nelms, Justine":{phone:"5103649670",email:"justineeynelms@icloud.com"},
+  "Ong, Alicia":{phone:"4154122355",email:"aradia@gmail.com"},
+  "Pacheco, Jenevieve":{phone:"5107500926",email:"pachecojenevieve@gmail.com"},
+  "Phair, Anika":{phone:"5109800821",email:"anikaphair@gmail.com"},
+  "Pichardo, Jocelin":{phone:"5109432533",email:"jocepic111@gmail.com"},
+  "Porter, Ashley":{phone:"4083347257",email:"ashleyzlporter@gmail.com"},
+  "Salas, Briana":{phone:"8589253002",email:"brianssalas333@outlook.com"},
+  "Saxena, Ashir":{phone:"5104949488",email:"ashirsax@gmail.com"},
+  "Templeton, Sophia":{phone:"5107378434",email:"freckles.templeton@icloud.com"},
+  "Valdovinos, Andrea":{phone:"4086617932",email:"andreavaldovinos.cm@gmail.com"},
+  "Valdovinos, Cristian":{phone:"4086309128",email:"cvgiantz@gmail.com"},
+  "Yanez, Kalina":{phone:"5109990581",email:"yankalina8@gmail.com"},
+  "Yee, Jasmine":{phone:"5108949370",email:"jasmine.m.yee950@gmail.com"},
+  "Zamarripa, Liliana":{phone:"5104029564",email:"ririana922@gmail.com"},
 };
 
-const RAW_SCHEDULE = [
+const RAW_SCHEDULE=[
   {name:"Bryan, Julia",day:"Monday",time:"3:30PM - 4:20PM",cls:"Ninja Five"},
   {name:"Bryan, Julia",day:"Monday",time:"6:30PM - 7:20PM",cls:"Advanced Purple/Orange"},
   {name:"Bryan, Julia",day:"Monday",time:"4:30PM - 6:30PM",cls:"Future Team - Dragonflies"},
@@ -354,18 +354,6 @@ function Logo(){
   );
 }
 
-const INIT_COACHES = [
-  {id:1,name:"Bryan, Julia",code:"JUL01",phone:"4083244023",email:"julia@bayaerials.com",active:true},
-  {id:2,name:"Cox, Monica",code:"COX02",phone:"4158065663",email:"monicacox@bayaerials.com",active:true},
-  {id:3,name:"Dacoco, Jenna",code:"DAC03",phone:"6692613215",email:"jennadacoco@gmail.com",active:true},
-  {id:4,name:"Douden, Grace",code:"DOU06",phone:"5306807716",email:"gdouden11@gmail.com",active:true},
-  {id:5,name:"Geronimo, Miguel",code:"GER08",phone:"5102581723",email:"msgeronimo15@gmail.com",active:true},
-  {id:6,name:"Legrande, Lawrence",code:"LEG11",phone:"4085081817",email:"Legrandelarry@icloud.com",active:true},
-  {id:7,name:"Miller, Sierra",code:"MIL16",phone:"6502811470",email:"sierra@bayaerials.com",active:true},
-  {id:8,name:"Templeton, Sophia",code:"TEM26",phone:"5107378434",email:"freckles.templeton@icloud.com",active:true},
-  {id:9,name:"Pichardo, Jocelin",code:"PIC22",phone:"5109432533",email:"jocepic111@gmail.com",active:false},
-];
-
 export default function App(){
   const [view,setView]=useState("admin");
   const [adminTab,setAdminTab]=useState("calendar");
@@ -386,21 +374,27 @@ export default function App(){
   const [showAddCoach,setShowAddCoach]=useState(false);
   const [editCoach,setEditCoach]=useState(null);
   const [coachForm,setCoachForm]=useState({name:"",phone:"",email:""});
+  const [loadingCoaches,setLoadingCoaches]=useState(false);
   const [availability,setAvailability]=useState(()=>{const m={};buildCoaches(RAW_SCHEDULE).forEach(c=>{m[c.id]=[...c.availability];});return m;});
 
   const coaches=useMemo(()=>buildCoaches(RAW_SCHEDULE),[]);
+  const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
 
-const fetchDbCoaches=useCallback(async()=>{
-  try{
-    const res=await fetch("/api/coaches");
-    const data=await res.json();
-    if(res.ok)setDbCoaches(data);
-  }catch(e){console.error("Failed to fetch coaches",e);}
-},[]);
+  // Fetch coaches from API (Supabase in production, simulated here)
+  const fetchDbCoaches=useCallback(async()=>{
+    setLoadingCoaches(true);
+    try{
+      const res=await fetch("/api/coaches");
+      const data=await res.json();
+      if(res.ok&&Array.isArray(data))setDbCoaches(data);
+    }catch(e){
+      // Fallback to STAFF_CONTACTS for prototype
+      const fallback=Object.entries(STAFF_CONTACTS).map(([name,ct],i)=>({id:i+1,name,code:(fn(name).slice(0,3)+String(i+1).padStart(2,"0")).toUpperCase(),phone:ct.phone,email:ct.email,active:true}));
+      setDbCoaches(fallback);
+    }finally{setLoadingCoaches(false);}
+  },[]);
 
-useEffect(()=>{fetchDbCoaches();},[fetchDbCoaches]);
-
-const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
+  useEffect(()=>{fetchDbCoaches();},[fetchDbCoaches]);
 
   const baseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+weekOffset*7);return d;},[weekOffset]);
   const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[baseDate]);
@@ -425,21 +419,38 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
   const confirmShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"confirmed"}:s));
   const removeShift=(id)=>setShifts(p=>p.filter(s=>s.id!==id));
   const assignSub=(shift,coach)=>{setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));setFindSubShift(null);};
-
   const loginCoach=()=>{const c=coaches.find(x=>x.code===coachCode.toUpperCase().trim());if(c){setActiveCoach(c);setLoginErr("");}else setLoginErr("Code not found. Contact Johnny.");};
   const myShifts=activeCoach?shifts.filter(s=>s.claimedBy===activeCoach.id):[];
   const openForMe=activeCoach?shifts.filter(s=>s.status==="open"&&(availability[activeCoach.id]||[]).includes(s.day)):[];
   const toggleDay=d=>{if(!activeCoach)return;setAvailability(p=>{const c=p[activeCoach.id]||[];return{...p,[activeCoach.id]:c.includes(d)?c.filter(x=>x!==d):[...c,d]};});};
 
-  const addCoach=()=>{
+  const addCoach=async()=>{
     if(!coachForm.name)return;
-    const prefix=coachForm.name.split(", ")[1]?.slice(0,3).toUpperCase()||coachForm.name.slice(0,3).toUpperCase();
-    const code=`${prefix}${Math.floor(Math.random()*900)+100}`;
-    setDbCoaches(p=>[...p,{id:Date.now(),...coachForm,code,active:true}]);
-    setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});
+    try{
+      const res=await fetch("/api/coaches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(coachForm)});
+      if(res.ok){await fetchDbCoaches();setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});}
+    }catch(e){
+      const prefix=coachForm.name.split(", ")[1]?.slice(0,3).toUpperCase()||coachForm.name.slice(0,3).toUpperCase();
+      const code=`${prefix}${Math.floor(Math.random()*900)+100}`;
+      setDbCoaches(p=>[...p,{id:Date.now(),...coachForm,code,active:true}]);
+      setShowAddCoach(false);setCoachForm({name:"",phone:"",email:""});
+    }
   };
-  const updateCoach=(id,updates)=>{setDbCoaches(p=>p.map(c=>c.id===id?{...c,...updates}:c));setEditCoach(null);};
-  const deleteCoach=(id)=>setDbCoaches(p=>p.filter(c=>c.id!==id));
+
+  const updateCoach=async(id,updates)=>{
+    try{
+      await fetch("/api/coaches",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...updates})});
+      await fetchDbCoaches();
+    }catch(e){setDbCoaches(p=>p.map(c=>c.id===id?{...c,...updates}:c));}
+    setEditCoach(null);
+  };
+
+  const deleteCoach=async(id)=>{
+    try{
+      await fetch(`/api/coaches?id=${id}`,{method:"DELETE"});
+      await fetchDbCoaches();
+    }catch(e){setDbCoaches(p=>p.filter(c=>c.id!==id));}
+  };
 
   const getPrintData=day=>{
     const date=weekDates[day];const dayShifts=shifts.filter(s=>s.day===day&&s.date===date);
@@ -469,7 +480,6 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
       {/* ADMIN */}
       {view==="admin"&&(
         <div>
-          {/* Stats */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
             {[["Open",shifts.filter(s=>s.status==="open").length,C.yellow,C.yellowText,C.yellowBorder],["Claimed",shifts.filter(s=>s.status==="claimed").length,C.blue,C.blueText,C.blueBorder],["Confirmed",shifts.filter(s=>s.status==="confirmed").length,C.green,C.greenText,C.greenBorder]].map(([l,v,bg,tc,bc])=>(
               <div key={l} style={{background:bg,border:`1px solid ${bc}`,borderRadius:C.radius,padding:10,textAlign:"center"}}>
@@ -479,7 +489,6 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
             ))}
           </div>
 
-          {/* TABS */}
           <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
             <Tab label="📅 Calendar" id="calendar"/>
             <Tab label="📋 Shifts" id="shifts"/>
@@ -536,7 +545,7 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
               {printDay&&(()=>{
                 const rows=getPrintData(printDay);const date=weekDates[printDay];
                 const dateStr=new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"});
-                const lines=[`BAY AERIALS — ${printDay.toUpperCase()} SCHEDULE`,dateStr,"─".repeat(56),...rows.map(r=>{const s=r.subShift;const sub=!s?"":s.status==="confirmed"&&s.claimedByName?`  ✓ SUB: ${sn(s.claimedByName)}`:s.status==="claimed"&&s.claimedByName?`  SUB CLAIMED: ${sn(s.claimedByName)}`:"  ⚠ OPEN";;return`${r.time.padEnd(24)}${r.cls.padEnd(36)}${sn(r.instructorName).padEnd(18)}${sub}`;}), "─".repeat(56),`Bay Aerials · ${new Date().toLocaleString()}`].join("\n");
+                const lines=[`BAY AERIALS — ${printDay.toUpperCase()} SCHEDULE`,dateStr,"─".repeat(56),...rows.map(r=>{const s=r.subShift;const sub=!s?"":s.status==="confirmed"&&s.claimedByName?`  ✓ SUB: ${sn(s.claimedByName)}`:s.status==="claimed"&&s.claimedByName?`  SUB CLAIMED: ${sn(s.claimedByName)}`:"  ⚠ OPEN";return`${r.time.padEnd(24)}${r.cls.padEnd(36)}${sn(r.instructorName).padEnd(18)}${sub}`;}), "─".repeat(56),`Bay Aerials · ${new Date().toLocaleString()}`].join("\n");
                 return(
                   <div style={{marginTop:14,border:`1px solid ${C.blueBorder}`,borderRadius:C.radius,overflow:"hidden"}}>
                     <div style={{background:C.blue,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -610,16 +619,18 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
           {/* MANAGE */}
           {adminTab==="manage"&&(
             <div>
-              <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:13,color:C.text2}}>{dbCoaches.length} coaches · {dbCoaches.filter(c=>c.active).length} active</div>
                 <button onClick={()=>setShowAddCoach(true)} style={{background:"#16a34a",color:"#fff",border:"none",borderRadius:C.radiusSm,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>+ Add Coach</button>
               </div>
+              {loadingCoaches&&<div style={{textAlign:"center",color:C.text2,padding:"2rem"}}>Loading coaches...</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {dbCoaches.map(c=>(
                   <div key={c.id} style={{...card,opacity:c.active?1:0.6}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                       <Avatar name={c.name}/>
                       <div style={{flex:1}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                           <div style={{fontWeight:600,fontSize:14}}>{sn(c.name)}</div>
                           {!c.active&&<span style={pill(C.red,C.redText,C.redBorder)}>inactive</span>}
                         </div>
@@ -685,7 +696,7 @@ const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
             {[["Open shifts","open",C.yellow,C.yellowText,C.yellowBorder],["My shifts","mine",C.blue,C.blueText,C.blueBorder],["Availability","avail",C.green,C.greenText,C.greenBorder]].map(([l,id,bg,tc,bc])=>(
               <button key={id} onClick={()=>setCoachTab(id)} style={{background:coachTab===id?bg:"transparent",color:coachTab===id?tc:C.text2,border:`1px solid ${coachTab===id?bc:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:coachTab===id?600:400}}>{l}</button>
             ))}
-            <button onClick={()=>setScheduleCoach(coaches.find(c=>c.id===activeCoach.id)||activeCoach)} style={{background:"#ede9fe",color:"#5b21b6",border:"1px solid #c4b5fd",borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>📅 My Schedule</button>
+            <button onClick={()=>setScheduleCoach(coaches.find(c=>c.name===activeCoach.name)||activeCoach)} style={{background:"#ede9fe",color:"#5b21b6",border:"1px solid #c4b5fd",borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>📅 My Schedule</button>
           </div>
           {coachTab==="open"&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
             {openForMe.length===0&&<div style={{...card,textAlign:"center",color:C.text2,padding:"2rem"}}>No open shifts match your available days.</div>}
