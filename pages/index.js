@@ -382,14 +382,25 @@ export default function App(){
   const [showProtocol,setShowProtocol]=useState(false);
   const [scheduleCoach,setScheduleCoach]=useState(null);
   const [form,setForm]=useState({instructorName:"",day:"",time:"",cls:"",notes:""});
-  const [dbCoaches,setDbCoaches]=useState(INIT_COACHES);
+  const [dbCoaches,setDbCoaches]=useState([]);
   const [showAddCoach,setShowAddCoach]=useState(false);
   const [editCoach,setEditCoach]=useState(null);
   const [coachForm,setCoachForm]=useState({name:"",phone:"",email:""});
   const [availability,setAvailability]=useState(()=>{const m={};buildCoaches(RAW_SCHEDULE).forEach(c=>{m[c.id]=[...c.availability];});return m;});
 
   const coaches=useMemo(()=>buildCoaches(RAW_SCHEDULE),[]);
-  const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+const fetchDbCoaches=useCallback(async()=>{
+  try{
+    const res=await fetch("/api/coaches");
+    const data=await res.json();
+    if(res.ok)setDbCoaches(data);
+  }catch(e){console.error("Failed to fetch coaches",e);}
+},[]);
+
+useEffect(()=>{fetchDbCoaches();},[fetchDbCoaches]);
+
+const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const baseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+weekOffset*7);return d;},[weekOffset]);
   const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[baseDate]);
