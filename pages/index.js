@@ -469,6 +469,33 @@ export default function App(){
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={()=>setShowProtocol(true)} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:C.radiusSm,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📋 Protocol</button>
+          {(view==="admin"||adminUnlocked)&&(
+            <label style={{background:C.bg2,color:C.text2,border:`1px solid ${C.border}`,borderRadius:C.radiusSm,padding:"5px 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>
+              ↑ Import
+              <input type="file" accept=".csv,.txt,.tsv" style={{display:"none"}} onChange={e=>{
+                const file=e.target.files[0];if(!file)return;
+                const reader=new FileReader();
+                reader.onload=ev=>{
+                  try{
+                    const lines=ev.target.result.trim().split("\n");
+                    const parsed=[];let cur="";
+                    for(const raw of lines){const cols=raw.split("\t").map(c=>c.trim());
+                      if(!cols[1]&&cols[0]&&!cols[0].startsWith("Total")){cur=cols[0];}
+                      else if(cols[1]&&cols[2]&&cols[3]&&cur){
+                        const days=cols[1].split(/\s+/).filter(d=>DAY_ORDER.includes(d));
+                        const times=cols[2].split(/(?<=PM|AM)\s+(?=\d)/);
+                        const cls=cols[3]!=="--"?cols[3]:(cols[4]||"");
+                        days.forEach((day,i)=>{if(cls)parsed.push({name:cur,day,time:times[i]||times[0]||cols[2],cls});});
+                      }
+                    }
+                    if(parsed.length>0){alert(`✓ Imported ${parsed.length} classes from ${[...new Set(parsed.map(r=>r.name))].length} instructors.`);}
+                    else{alert("No data found. Export as tab-delimited from iClassPro.");}
+                  }catch{alert("Could not parse file.");}
+                };
+                reader.readAsText(file);e.target.value="";
+              }}/>
+            </label>
+          )}
           <button onClick={()=>adminUnlocked?setView("admin"):setView("adminlogin")} style={{background:view==="admin"?C.bg3:"transparent",color:view==="admin"?C.text:C.text2,border:`1px solid ${view==="admin"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="admin"?600:400}}>🔐 Admin</button>
           <button onClick={()=>setView("coach")} style={{background:view==="coach"?C.bg3:"transparent",color:view==="coach"?C.text:C.text2,border:`1px solid ${view==="coach"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="coach"?600:400}}>Coach login</button>
         </div>
