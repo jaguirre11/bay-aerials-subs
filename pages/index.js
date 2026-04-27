@@ -355,7 +355,10 @@ function Logo(){
 }
 
 export default function App(){
-  const [view,setView]=useState("admin");
+  const [view,setView]=useState("coach");
+const [adminUnlocked,setAdminUnlocked]=useState(false);
+const [adminPass,setAdminPass]=useState("");
+const [adminErr,setAdminErr]=useState("");
   const [adminTab,setAdminTab]=useState("calendar");
   const [shifts,setShifts]=useState([]);
   const [smsLog,setSmsLog]=useState([]);
@@ -472,13 +475,45 @@ export default function App(){
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={()=>setShowProtocol(true)} style={{background:"#7c3aed",color:"#fff",border:"none",borderRadius:C.radiusSm,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>📋 Protocol</button>
-          <button onClick={()=>setView("admin")} style={{background:view==="admin"?C.bg3:"transparent",color:view==="admin"?C.text:C.text2,border:`1px solid ${view==="admin"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="admin"?600:400}}>Admin</button>
+          <button onClick={()=>adminUnlocked?setView("admin"):setView("adminlogin")} ...>Admin</button>
           <button onClick={()=>setView("coach")} style={{background:view==="coach"?C.bg3:"transparent",color:view==="coach"?C.text:C.text2,border:`1px solid ${view==="coach"?C.border2:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:view==="coach"?600:400}}>Coach login</button>
         </div>
       </div>
 
       {/* ADMIN */}
-      {view==="admin"&&(
+{view==="adminlogin"&&(
+  <div style={{maxWidth:300,margin:"0 auto",paddingTop:"1rem"}}>
+    <div style={{...card,textAlign:"center"}}>
+      <div style={{fontSize:28,marginBottom:8}}>🔐</div>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Admin Access</div>
+      <div style={{fontSize:12,color:C.text2,marginBottom:14}}>Enter your admin password to continue.</div>
+      <input
+        type="password"
+        value={adminPass}
+        onChange={e=>setAdminPass(e.target.value)}
+        placeholder="Password"
+        onKeyDown={async e=>{
+          if(e.key==="Enter"){
+            const res=await fetch("/api/admin-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:adminPass})});
+            if(res.ok){setAdminUnlocked(true);setView("admin");setAdminErr("");}
+            else setAdminErr("Incorrect password");
+          }
+        }}
+        style={{...inp,textAlign:"center",fontSize:15,marginBottom:8}}
+      />
+      {adminErr&&<div style={{color:C.redText,fontSize:12,marginBottom:8}}>{adminErr}</div>}
+      <button onClick={async()=>{
+        const res=await fetch("/api/admin-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:adminPass})});
+        if(res.ok){setAdminUnlocked(true);setView("admin");setAdminErr("");}
+        else setAdminErr("Incorrect password");
+      }} style={{width:"100%",padding:8,background:"#2563eb",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:600,cursor:"pointer",fontSize:13}}>
+        Unlock Admin
+      </button>
+      <button onClick={()=>setView("coach")} style={{marginTop:10,background:"transparent",border:"none",color:C.text2,fontSize:12,cursor:"pointer"}}>← Back to Coach login</button>
+    </div>
+  </div>
+)}      
+{view==="admin"&&(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
             {[["Open",shifts.filter(s=>s.status==="open").length,C.yellow,C.yellowText,C.yellowBorder],["Claimed",shifts.filter(s=>s.status==="claimed").length,C.blue,C.blueText,C.blueBorder],["Confirmed",shifts.filter(s=>s.status==="confirmed").length,C.green,C.greenText,C.greenBorder]].map(([l,v,bg,tc,bc])=>(
