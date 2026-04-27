@@ -1,4 +1,9 @@
-import { supabaseAdmin } from '../../lib/supabase';
+const { createClient } = require('@supabase/supabase-js');
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 export default async function handler(req, res) {
 
@@ -8,7 +13,11 @@ export default async function handler(req, res) {
       .from('coaches')
       .select('*')
       .order('name', { ascending: true });
-    if (error) return res.status(500).json({ error: error.message });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({ error: error.message });
+    }
     return res.status(200).json(data);
   }
 
@@ -17,7 +26,6 @@ export default async function handler(req, res) {
     const { name, phone, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
-    // Auto-generate a unique code
     const prefix = name.split(', ')[1]?.slice(0, 3).toUpperCase() || name.slice(0, 3).toUpperCase();
     const rand = Math.floor(Math.random() * 900) + 100;
     const code = `${prefix}${rand}`;
@@ -32,7 +40,7 @@ export default async function handler(req, res) {
     return res.status(201).json(data);
   }
 
-  // PATCH — update a coach (edit or deactivate)
+  // PATCH — update a coach
   if (req.method === 'PATCH') {
     const { id, ...updates } = req.body;
     if (!id) return res.status(400).json({ error: 'ID is required' });
@@ -48,13 +56,14 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   }
 
-  // DELETE — permanently remove a coach
+  // DELETE — remove a coach
   if (req.method === 'DELETE') {
     const { id } = req.query;
     const { error } = await supabaseAdmin
       .from('coaches')
       .delete()
       .eq('id', id);
+
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });
   }
