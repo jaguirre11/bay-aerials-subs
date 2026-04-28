@@ -419,6 +419,12 @@ export default function App(){
   const [callOutShift,setCallOutShift]=useState(null);
   const [callOutNote,setCallOutNote]=useState("");
 
+  const [coachWeekOffset,setCoachWeekOffset]=useState(0);
+
+  const coachBaseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+coachWeekOffset*7);return d;},[coachWeekOffset]);
+  const coachWeekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(coachBaseDate);dt.setDate(coachBaseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[coachBaseDate]);
+  const coachFmtRange=()=>{const e=new Date(coachBaseDate);e.setDate(coachBaseDate.getDate()+6);return`${coachBaseDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;};
+
   const submitCallOut=()=>{
     if(!callOutShift)return;
     const di=DAY_ORDER.indexOf(callOutShift.day);
