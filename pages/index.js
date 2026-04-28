@@ -414,15 +414,51 @@ export default function App(){
     }catch(e){setAdminErr("Connection error. Try again.");}
   };
 
+  const [selectedClasses,setSelectedClasses]=useState([]);
+
+  const toggleClass=(cls,time)=>{
+    setSelectedClasses(p=>{
+      const exists=p.find(c=>c.cls===cls&&c.time===time);
+      if(exists)return p.filter(c=>!(c.cls===cls&&c.time===time));
+      return [...p,{cls,time}];
+    });
+  };
+
   const postShift=()=>{
-    if(!form.instructorName||!form.cls)return;
+    if(!form.instructorName||selectedClasses.length===0)return;
     const di=DAY_ORDER.indexOf(form.day);const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
-    const date=dt.toISOString().slice(0,10);const id=Date.now();
-    const shift={id,instructorName:form.instructorName,date,day:form.day,time:form.time,cls:form.cls,notes:form.notes,status:"open",claimedBy:null,claimedByName:null};
-    setShifts(p=>[...p,shift]);
-    const eligible=coaches.filter(c=>{if(c.name===form.instructorName)return false;if(!(availability[c.id]||[]).includes(form.day))return false;return !RAW_SCHEDULE.some(r=>r.name===c.name&&r.day===form.day&&r.time===form.time);});
-    eligible.forEach(c=>{const ct=STAFF_CONTACTS[c.name]||{};setSmsLog(p=>[{to:sn(c.name),phone:fp(ct.phone||""),msg:`Sub needed ${form.day} ${form.time} – ${form.cls}. Code: ${c.code}`,time:new Date().toLocaleTimeString()},...p]);});
-    setShowPost(false);setForm({instructorName:"",day:"",time:"",cls:"",notes:""});
+    const date=dt.toISOString().slice(0,10);
+
+    // Add a shift for each selected class
+    const newShifts=selectedClasses.map(({cls,time})=>({
+      id:Date.now()+Math.random(),instructorName:form.instructorName,
+      date,day:form.day,time,cls,notes:form.notes,
+      status:"open",claimedBy:null,claimedByName:null
+    }));
+    setShifts(p=>[...p,...newShifts]);
+
+    // Find eligible coaches across ALL selected time slots
+    // A coach is eligible if they're free for ALL the selected times
+    const eligible=coaches.filter(c=>{
+      if(c.name===form.instructorName)return false;
+      if(!(availability[c.id]||[]).includes(form.day))return false;
+      // Check they're not teaching during any of the selected times
+      return selectedClasses.every(({time})=>
+        !RAW_SCHEDULE.some(r=>r.name===c.name&&r.day===form.day&&r.time===time)
+      );
+    });
+
+    // Send ONE text per coach listing ALL the classes
+    const classList=selectedClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
+    eligible.forEach(c=>{
+      const ct=STAFF_CONTACTS[c.name]||{};
+      const msg=`Bay Aerials: Sub needed ${form.day}!\n${classList}\nCovering: ${sn(form.instructorName)}\nCode: ${c.code}`;
+      setSmsLog(p=>[{to:sn(c.name),phone:fp(ct.phone||""),msg,time:new Date().toLocaleTimeString()},...p]);
+    });
+
+    setShowPost(false);
+    setForm({instructorName:"",day:"",time:"",cls:"",notes:""});
+    setSelectedClasses([]);
   };
 
   const claimShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
@@ -857,35 +893,60 @@ export default function App(){
         </div>);
       })()}
 
-      {/* POST SHIFT MODAL */}
       {showPost&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}}>
-          <div style={{...card,width:370,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto"}}>
+          <div style={{...card,width:390,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontWeight:700,fontSize:14,marginBottom:14}}>Post Substitute Shift</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               <div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Instructor calling out</label>
-                <select value={form.instructorName} onChange={e=>{ff("instructorName",e.target.value);ff("day","");ff("time","");ff("cls","");}} style={inp}>
+                <select value={form.instructorName} onChange={e=>{ff("instructorName",e.target.value);ff("day","");setSelectedClasses([]);}} style={inp}>
                   <option value="">— select instructor —</option>
                   {coaches.map(c=><option key={c.name} value={c.name}>{sn(c.name)}</option>)}
                 </select>
               </div>
               {form.instructorName&&<div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Day</label>
-                <select value={form.day} onChange={e=>{ff("day",e.target.value);ff("time","");ff("cls","");}} style={inp}>
+                <select value={form.day} onChange={e=>{ff("day",e.target.value);setSelectedClasses([]);}} style={inp}>
                   <option value="">— select day —</option>
                   {aDays.map(d=><option key={d}>{d}</option>)}
                 </select>
               </div>}
-              {form.day&&cOnDay.length>0&&<div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Class</label>
-                <select value={form.cls} onChange={e=>{const sel=cOnDay.find(c=>c.cls===e.target.value);ff("cls",e.target.value);if(sel)ff("time",sel.time);}} style={inp}>
-                  <option value="">— select class —</option>
-                  {cOnDay.map((c,i)=><option key={i} value={c.cls}>{c.time} · {c.cls}</option>)}
-                </select>
-              </div>}
+              {form.day&&cOnDay.length>0&&(
+                <div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Select classes to cover</label>
+                    <button onClick={()=>selectedClasses.length===cOnDay.length?setSelectedClasses([]):setSelectedClasses(cOnDay.map(c=>({cls:c.cls,time:c.time})))} style={{background:selectedClasses.length===cOnDay.length?C.red:C.blue,color:selectedClasses.length===cOnDay.length?C.redText:C.blueText,border:`1px solid ${selectedClasses.length===cOnDay.length?C.redBorder:C.blueBorder}`,borderRadius:C.radiusSm,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+                      {selectedClasses.length===cOnDay.length?"Deselect all":"Select all"}
+                    </button>
+                  </div>
+                  <div style={{fontSize:10,color:C.text2,marginBottom:6}}>Check all that apply — one text sent per coach.</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:4}}>
+                    {cOnDay.map((c,i)=>{
+                      const checked=selectedClasses.some(s=>s.cls===c.cls&&s.time===c.time);
+                      return(
+                        <div key={i} onClick={()=>toggleClass(c.cls,c.time)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:C.radiusSm,border:`1px solid ${checked?C.blueBorder:C.border}`,background:checked?C.blue:"transparent",cursor:"pointer"}}>
+                          <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?C.blueText:C.border2}`,background:checked?C.blueText:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                            {checked&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
+                          </div>
+                          <div>
+                            <div style={{fontSize:12,fontWeight:600,color:checked?C.blueText:C.text}}>{c.cls}</div>
+                            <div style={{fontSize:10,color:checked?C.blueText:C.text2}}>{c.time}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedClasses.length>0&&(
+                    <div style={{marginTop:8,fontSize:11,color:C.greenText,background:C.green,border:`1px solid ${C.greenBorder}`,borderRadius:C.radiusSm,padding:"6px 10px"}}>
+                      ✓ {selectedClasses.length} class{selectedClasses.length>1?"es":""} selected — 1 text per coach
+                    </div>
+                  )}
+                </div>
+              )}
               <div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Notes (optional)</label><input value={form.notes} onChange={e=>ff("notes",e.target.value)} placeholder="e.g. Studio A" style={inp}/></div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
-              <button onClick={()=>setShowPost(false)} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
-              <button onClick={postShift} disabled={!form.cls} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:form.cls?"#16a34a":"#d1d5db",color:form.cls?"#fff":"#9ca3af",fontWeight:600,cursor:form.cls?"pointer":"default",fontSize:12}}>Post & notify coaches</button>
+              <button onClick={()=>{setShowPost(false);setSelectedClasses([]);}} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
+              <button onClick={postShift} disabled={selectedClasses.length===0} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:selectedClasses.length>0?"#16a34a":"#d1d5db",color:selectedClasses.length>0?"#fff":"#9ca3af",fontWeight:600,cursor:selectedClasses.length>0?"pointer":"default",fontSize:12}}>Post & notify coaches</button>
             </div>
           </div>
         </div>
