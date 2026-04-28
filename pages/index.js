@@ -371,6 +371,11 @@ export default function App(){
   const [coachForm,setCoachForm]=useState({name:"",phone:"",email:""});
   const [loadingCoaches,setLoadingCoaches]=useState(false);
   const [availability,setAvailability]=useState(()=>{const m={};buildCoaches(RAW_SCHEDULE).forEach(c=>{m[c.id]=[...c.availability];});return m;});
+  const [showCallout,setShowCallout]=useState(false);
+  const [calloutDay,setCalloutDay]=useState("");
+  const [calloutClasses,setCalloutClasses]=useState([]);
+  const [calloutNote,setCalloutNote]=useState("");
+  const [calloutSent,setCalloutSent]=useState(false);
 
   const coaches=useMemo(()=>buildCoaches(RAW_SCHEDULE),[]);
   const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
@@ -451,6 +456,24 @@ export default function App(){
     setForm({instructorName:"",day:"",time:"",cls:"",notes:""});
     setSelectedClasses([]);
   };
+
+  const submitCallout=()=>{
+    if(!activeCoach||!calloutDay||calloutClasses.length===0)return;
+    const di=DAY_ORDER.indexOf(calloutDay);const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
+    const date=dt.toISOString().slice(0,10);
+    const newShifts=calloutClasses.map(({cls,time})=>({
+      id:Date.now()+Math.random(),instructorName:activeCoach.name,
+      date,day:calloutDay,time,cls,notes:calloutNote,
+      status:"open",claimedBy:null,claimedByName:null
+    }));
+    setShifts(p=>[...p,...newShifts]);
+    const classList=calloutClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
+    const mgr=STAFF_CONTACTS["Bryan, Julia"]||STAFF_CONTACTS["Cox, Monica"]||Object.values(STAFF_CONTACTS)[0];
+    setSmsLog(p=>[{to:"Monica / Julia",phone:fp(mgr.phone||""),msg:`⚠️ Call-out from ${sn(activeCoach.name)} — ${calloutDay}\n${classList}${calloutNote?`\nNote: ${calloutNote}`:""}`,time:new Date().toLocaleTimeString()},...p]);
+    setCalloutSent(true);
+  };
+
+  const resetCallout=()=>{setShowCallout(false);setCalloutDay("");setCalloutClasses([]);setCalloutNote("");setCalloutSent(false);};
 
   const claimShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
   const confirmShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"confirmed"}:s));
@@ -762,6 +785,7 @@ export default function App(){
               <button key={id} onClick={()=>setCoachTab(id)} style={{background:coachTab===id?bg:"transparent",color:coachTab===id?tc:C.text2,border:`1px solid ${coachTab===id?bc:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:coachTab===id?600:400}}>{l}</button>
             ))}
             <button onClick={()=>setScheduleCoach(coaches.find(c=>c.name===activeCoach.name)||activeCoach)} style={{background:"#ede9fe",color:"#5b21b6",border:"1px solid #c4b5fd",borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>📅 My Schedule</button>
+            <button onClick={()=>{setShowCallout(true);setCalloutSent(false);setCalloutDay("");setCalloutClasses([]);setCalloutNote("");}} style={{background:C.red,color:C.redText,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>🚨 Call-Out</button>
           </div>
           {coachTab==="open"&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
             {openForMe.length===0&&<div style={{...card,textAlign:"center",color:C.text2,padding:"2rem"}}>No open shifts match your available days.</div>}
@@ -790,6 +814,87 @@ export default function App(){
               {DAY_ORDER.map(d=>{const on=(availability[activeCoach.id]||[]).includes(d);return<button key={d} onClick={()=>toggleDay(d)} style={{padding:"6px 12px",borderRadius:C.radiusSm,border:`1px solid ${on?C.blueBorder:C.border}`,background:on?C.blue:"transparent",color:on?C.blueText:C.text2,fontWeight:on?600:400,cursor:"pointer",fontSize:12}}>{DAY_SHORT[d]}</button>;})}
             </div>
           </div>)}
+        </div>
+      )}
+
+      {/* CALL-OUT MODAL */}
+      {showCallout&&activeCoach&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+          <div style={{...card,width:400,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto"}}>
+            {calloutSent?(
+              <div style={{textAlign:"center",padding:"1.5rem 1rem"}}>
+                <div style={{fontSize:40,marginBottom:12}}>✅</div>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Call-Out Submitted</div>
+                <div style={{fontSize:12,color:C.text2,marginBottom:6}}>Your call-out for <strong>{calloutDay}</strong> has been sent to management.</div>
+                <div style={{fontSize:11,color:C.text2,background:C.bg2,borderRadius:C.radiusSm,padding:"8px 12px",marginBottom:16,textAlign:"left"}}>
+                  {calloutClasses.map(({time,cls},i)=><div key={i}>• {time} – {cls}</div>)}
+                  {calloutNote&&<div style={{marginTop:6,color:C.text3}}>Note: {calloutNote}</div>}
+                </div>
+                <div style={{fontSize:11,color:C.yellowText,background:C.yellow,border:`1px solid ${C.yellowBorder}`,borderRadius:C.radiusSm,padding:"7px 10px",marginBottom:16}}>Management will arrange a sub. You don't need to find one yourself.</div>
+                <button onClick={resetCallout} style={{width:"100%",padding:9,background:"#2563eb",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:700,fontSize:13,cursor:"pointer"}}>Done</button>
+              </div>
+            ):(
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                  <div style={{background:C.red,border:`1px solid ${C.redBorder}`,borderRadius:"50%",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🚨</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14}}>Request Call-Out</div>
+                    <div style={{fontSize:11,color:C.text2}}>{sn(activeCoach.name)} — select the classes you can't make</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Day</label>
+                    <select value={calloutDay} onChange={e=>{setCalloutDay(e.target.value);setCalloutClasses([]);}} style={inp}>
+                      <option value="">— select day —</option>
+                      {[...new Set(RAW_SCHEDULE.filter(r=>r.name===activeCoach.name).map(r=>r.day))].sort((a,b)=>DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b)).map(d=><option key={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  {calloutDay&&(()=>{
+                    const dayClasses=RAW_SCHEDULE.filter(r=>r.name===activeCoach.name&&r.day===calloutDay).sort((a,b)=>a.time.localeCompare(b.time));
+                    return(
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                          <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Classes to call out of</label>
+                          <button onClick={()=>calloutClasses.length===dayClasses.length?setCalloutClasses([]):setCalloutClasses(dayClasses.map(c=>({cls:c.cls,time:c.time})))} style={{background:calloutClasses.length===dayClasses.length?C.red:C.blue,color:calloutClasses.length===dayClasses.length?C.redText:C.blueText,border:`1px solid ${calloutClasses.length===dayClasses.length?C.redBorder:C.blueBorder}`,borderRadius:C.radiusSm,padding:"3px 10px",fontSize:11,cursor:"pointer",fontWeight:600}}>
+                            {calloutClasses.length===dayClasses.length?"Deselect all":"Select all"}
+                          </button>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {dayClasses.map((c,i)=>{
+                            const checked=calloutClasses.some(s=>s.cls===c.cls&&s.time===c.time);
+                            return(
+                              <div key={i} onClick={()=>setCalloutClasses(p=>{const exists=p.find(s=>s.cls===c.cls&&s.time===c.time);return exists?p.filter(s=>!(s.cls===c.cls&&s.time===c.time)):[...p,{cls:c.cls,time:c.time}];})} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:C.radiusSm,border:`1px solid ${checked?C.redBorder:C.border}`,background:checked?C.red:"transparent",cursor:"pointer"}}>
+                                <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?C.redText:C.border2}`,background:checked?C.redText:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                                  {checked&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
+                                </div>
+                                <div>
+                                  <div style={{fontSize:12,fontWeight:600,color:checked?C.redText:C.text}}>{c.cls}</div>
+                                  <div style={{fontSize:10,color:checked?C.redText:C.text2}}>{c.time}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {calloutClasses.length>0&&<div style={{marginTop:8,fontSize:11,color:C.redText,background:C.red,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"6px 10px"}}>⚠ {calloutClasses.length} class{calloutClasses.length>1?"es":""} flagged</div>}
+                      </div>
+                    );
+                  })()}
+                  <div>
+                    <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Reason / note (optional)</label>
+                    <input value={calloutNote} onChange={e=>setCalloutNote(e.target.value)} placeholder="e.g. sick, family emergency..." style={inp}/>
+                  </div>
+                  <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:C.radiusSm,padding:"8px 10px",fontSize:11,color:"#92400e"}}>
+                    Management will be notified and will arrange a sub. You don't need to find one.
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
+                  <button onClick={resetCallout} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
+                  <button onClick={submitCallout} disabled={calloutClasses.length===0} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:calloutClasses.length>0?"#dc2626":"#d1d5db",color:calloutClasses.length>0?"#fff":"#9ca3af",fontWeight:600,cursor:calloutClasses.length>0?"pointer":"default",fontSize:12}}>Submit Call-Out</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
