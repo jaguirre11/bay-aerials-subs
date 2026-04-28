@@ -531,20 +531,28 @@ export default function App(){
                 const reader=new FileReader();
                 reader.onload=ev=>{
                   try{
-                    const lines=ev.target.result.trim().split("\n");
+                    const text=ev.target.result.replace(/^\ufeff/,"");
+                    const lines=text.trim().split("\n");
                     const parsed=[];let cur="";
-                    for(const raw of lines){const cols=raw.split("\t").map(c=>c.trim());
-                      if(!cols[1]&&cols[0]&&!cols[0].startsWith("Total")){cur=cols[0];}
-                      else if(cols[1]&&cols[2]&&cols[3]&&cur){
+                    const skipClasses=["clean up","clean up-tuesday","clean up-thursday/friday","hospitalty"];
+                    // Parse quoted CSV: split by "," pattern
+                    const parseCSVLine=(line)=>line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c=>c.replace(/^"|"$/g,"").trim());
+                    for(let li=1;li<lines.length;li++){
+                      const cols=parseCSVLine(lines[li]);
+                      if(!cols[0]&&!cols[1]&&cols[7]&&cols[7].startsWith("Total"))continue;
+                      if(!cols[0]&&!cols[1]&&cols[7]&&cols[7].startsWith("Grand"))continue;
+                      if(cols[0]&&!cols[1]){cur=cols[0];continue;}
+                      if(!cols[0]&&cols[1]&&cols[2]&&cols[3]&&cur){
+                        if(skipClasses.some(sc=>cols[3].toLowerCase().startsWith(sc)))continue;
                         const days=cols[1].split(/\s+/).filter(d=>DAY_ORDER.includes(d));
                         const times=cols[2].split(/(?<=PM|AM)\s+(?=\d)/);
-                        const cls=cols[3]!=="--"?cols[3]:(cols[4]||"");
+                        const cls=cols[3];
                         days.forEach((day,i)=>{if(cls)parsed.push({name:cur,day,time:times[i]||times[0]||cols[2],cls});});
                       }
                     }
-                    if(parsed.length>0){alert(`✓ Imported ${parsed.length} classes from ${[...new Set(parsed.map(r=>r.name))].length} instructors.`);}
-                    else{alert("No data found. Export as tab-delimited from iClassPro.");}
-                  }catch{alert("Could not parse file.");}
+                    if(parsed.length>0){alert(`✓ Imported ${parsed.length} classes from ${[...new Set(parsed.map(r=>r.name))].length} instructors.\n\nNote: "Clean up" shifts were excluded.`);}
+                    else{alert("No data found. Export Staff Schedule as CSV from iClassPro.");}
+                  }catch(err){alert("Could not parse file: "+err.message);}
                 };
                 reader.readAsText(file);e.target.value="";
               }}/>
