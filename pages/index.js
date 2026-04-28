@@ -364,7 +364,8 @@ export default function App(){
   const [showPost,setShowPost]=useState(false);
   const [showProtocol,setShowProtocol]=useState(false);
   const [scheduleCoach,setScheduleCoach]=useState(null);
-  const [form,setForm]=useState({instructorName:"",day:"",time:"",cls:"",notes:""});
+  const [form,setForm]=useState({instructorName:"",day:"",date:"",time:"",cls:"",notes:""});
+  const [postWeekOffset,setPostWeekOffset]=useState(0);
   const [dbCoaches,setDbCoaches]=useState([]);
   const [showAddCoach,setShowAddCoach]=useState(false);
   const [editCoach,setEditCoach]=useState(null);
@@ -423,9 +424,8 @@ export default function App(){
   };
 
   const postShift=()=>{
-    if(!form.instructorName||selectedClasses.length===0)return;
-    const di=DAY_ORDER.indexOf(form.day);const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
-    const date=dt.toISOString().slice(0,10);
+    if(!form.instructorName||!form.date||selectedClasses.length===0)return;
+    const date=form.date;
 
     // Add a shift for each selected class
     const newShifts=selectedClasses.map(({cls,time})=>({
@@ -447,15 +447,17 @@ export default function App(){
     });
 
     // Send ONE text per coach listing ALL the classes
+    const dateStr=new Date(form.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
     const classList=selectedClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
     eligible.forEach(c=>{
       const ct=STAFF_CONTACTS[c.name]||{};
-      const msg=`Bay Aerials: Sub needed ${form.day}!\n${classList}\nCovering: ${sn(form.instructorName)}\nCode: ${c.code}`;
+      const msg=`Bay Aerials: Sub needed ${dateStr}!\n${classList}\nCovering: ${sn(form.instructorName)}\nCode: ${c.code}`;
       setSmsLog(p=>[{to:sn(c.name),phone:fp(ct.phone||""),msg,time:new Date().toLocaleTimeString()},...p]);
     });
 
     setShowPost(false);
-    setForm({instructorName:"",day:"",time:"",cls:"",notes:""});
+    setForm({instructorName:"",day:"",date:"",time:"",cls:"",notes:""});
+    setPostWeekOffset(0);
     setSelectedClasses([]);
   };
 
@@ -1043,16 +1045,62 @@ export default function App(){
             <div style={{fontWeight:700,fontSize:14,marginBottom:14}}>Post Substitute Shift</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               <div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Instructor calling out</label>
-                <select value={form.instructorName} onChange={e=>{ff("instructorName",e.target.value);ff("day","");setSelectedClasses([]);}} style={inp}>
+                <select value={form.instructorName} onChange={e=>{ff("instructorName",e.target.value);ff("day","");ff("date","");setPostWeekOffset(0);setSelectedClasses([]);}} style={inp}>
                   <option value="">— select instructor —</option>
                   {coaches.map(c=><option key={c.name} value={c.name}>{sn(c.name)}</option>)}
                 </select>
               </div>
-              {form.instructorName&&<div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Day</label>
-                <select value={form.day} onChange={e=>{ff("day",e.target.value);setSelectedClasses([]);}} style={inp}>
-                  <option value="">— select day —</option>
-                  {aDays.map(d=><option key={d}>{d}</option>)}
-                </select>
+              {form.instructorName&&<div>
+                <label style={{fontSize:11,fontWeight:600,color:C.text2,display:"block",marginBottom:6}}>Select date</label>
+                {(()=>{
+                  const instrDays=new Set(RAW_SCHEDULE.filter(r=>r.name===form.instructorName).map(r=>r.day));
+                  const today=new Date();today.setHours(0,0,0,0);
+                  const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay()+postWeekOffset*7);
+                  const endOfWeek=new Date(startOfWeek);endOfWeek.setDate(startOfWeek.getDate()+6);
+                  const weekLabel=`${startOfWeek.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${endOfWeek.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;
+                  const days=DAY_ORDER.map((dayName,i)=>{
+                    const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
+                    const iso=d.toISOString().slice(0,10);
+                    const isPast=d<today;
+                    const isToday=d.getTime()===today.getTime();
+                    const hasClasses=instrDays.has(dayName);
+                    const isSelected=form.date===iso;
+                    return{dayName,d,iso,isPast,isToday,hasClasses,isSelected,num:d.getDate()};
+                  });
+                  return(
+                    <div style={{background:C.bg2,borderRadius:C.radius,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderBottom:`1px solid ${C.border}`,background:C.bg}}>
+                        <button onClick={()=>{if(postWeekOffset>0){setPostWeekOffset(w=>w-1);ff("day","");ff("date","");setSelectedClasses([]);}}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:C.radiusSm,width:26,height:26,cursor:postWeekOffset>0?"pointer":"default",fontSize:14,color:postWeekOffset>0?C.text:C.text3,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                        <div style={{fontSize:11,fontWeight:600,color:C.text}}>{weekLabel}</div>
+                        <button onClick={()=>{setPostWeekOffset(w=>w+1);ff("day","");ff("date","");setSelectedClasses([]);}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:C.radiusSm,width:26,height:26,cursor:"pointer",fontSize:14,color:C.text,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,padding:6}}>
+                        {DAY_ORDER.map(d=>(
+                          <div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,color:C.text3,textTransform:"uppercase",paddingBottom:2}}>{DAY_SHORT[d]}</div>
+                        ))}
+                        {days.map(({dayName,iso,isPast,isToday,hasClasses,isSelected,num})=>{
+                          const selectable=!isPast&&hasClasses;
+                          return(
+                            <div key={iso} onClick={()=>{if(selectable){ff("day",dayName);ff("date",iso);setSelectedClasses([]);}}}
+                              style={{textAlign:"center",padding:"6px 2px",borderRadius:C.radiusSm,cursor:selectable?"pointer":"default",
+                                background:isSelected?"#16a34a":isToday&&!isSelected?"#eff6ff":"transparent",
+                                border:`1px solid ${isSelected?"#16a34a":isToday&&!isSelected?C.blueBorder:"transparent"}`,
+                                opacity:isPast?0.3:1,position:"relative"}}>
+                              <div style={{fontSize:12,fontWeight:isSelected||isToday?700:400,color:isSelected?"#fff":isToday?C.blueText:hasClasses&&!isPast?C.text:C.text3}}>{num}</div>
+                              {hasClasses&&!isPast&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"rgba(255,255,255,0.7)":"#16a34a",margin:"2px auto 0"}}/>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {form.date&&<div style={{padding:"6px 10px",borderTop:`1px solid ${C.border}`,fontSize:11,color:C.text2,background:C.bg}}>
+                        📅 {new Date(form.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} — {sn(form.instructorName)}
+                      </div>}
+                      {!form.date&&<div style={{padding:"6px 10px",borderTop:`1px solid ${C.border}`,fontSize:11,color:C.text3,background:C.bg}}>
+                        Tap a day with a green dot — those are {sn(form.instructorName)}'s scheduled days.
+                      </div>}
+                    </div>
+                  );
+                })()}
               </div>}
               {form.day&&cOnDay.length>0&&(
                 <div>
@@ -1089,8 +1137,8 @@ export default function App(){
               <div><label style={{fontSize:11,fontWeight:600,color:C.text2}}>Notes (optional)</label><input value={form.notes} onChange={e=>ff("notes",e.target.value)} placeholder="e.g. Studio A" style={inp}/></div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
-              <button onClick={()=>{setShowPost(false);setSelectedClasses([]);}} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
-              <button onClick={postShift} disabled={selectedClasses.length===0} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:selectedClasses.length>0?"#16a34a":"#d1d5db",color:selectedClasses.length>0?"#fff":"#9ca3af",fontWeight:600,cursor:selectedClasses.length>0?"pointer":"default",fontSize:12}}>Post & notify coaches</button>
+              <button onClick={()=>{setShowPost(false);setSelectedClasses([]);setPostWeekOffset(0);setForm({instructorName:"",day:"",date:"",time:"",cls:"",notes:""});}} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
+              <button onClick={postShift} disabled={selectedClasses.length===0||!form.date} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:selectedClasses.length>0&&form.date?"#16a34a":"#d1d5db",color:selectedClasses.length>0&&form.date?"#fff":"#9ca3af",fontWeight:600,cursor:selectedClasses.length>0&&form.date?"pointer":"default",fontSize:12}}>Post & notify coaches</button>
             </div>
           </div>
         </div>
