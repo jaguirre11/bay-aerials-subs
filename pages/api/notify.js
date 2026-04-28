@@ -1,12 +1,7 @@
-const TEST_MODE = process.env.SMS_TEST_MODE === 'true';
-
-// ...later, before client.messages.create():
-if (TEST_MODE) {
-  console.log(`[TEST MODE] Would send to ${phone}: ${message}`);
-  return res.status(200).json({ success: true, testMode: true });
-}
 import { supabaseAdmin } from '../../lib/supabase';
 import { sendSMS } from '../../lib/twilio';
+
+const TEST_MODE = process.env.SMS_TEST_MODE === 'true';
 
 // Only send texts between 8 AM and 8 PM Pacific time
 function isWithinTextingHours() {
@@ -87,18 +82,24 @@ export default async function handler(req, res) {
       `Log in with code: ${coach.code}\n` +
       `bayaerials-subs.vercel.app`;
 
-    const result = await sendSMS(coach.phone, msg);
+    let result;
+    if (TEST_MODE) {
+      console.log(`[TEST MODE] Would send to ${coach.name} (${coach.phone}): ${msg}`);
+      result = { success: true, testMode: true, sid: 'TEST_MODE_NO_SEND' };
+    } else {
+      result = await sendSMS(coach.phone, msg);
+    }
 
     await supabaseAdmin.from('sms_log').insert([{
       to_name: coach.name,
-      to_phone: coach.phone,
+      to_phone: TEST_MODE ? `[TEST] ${coach.phone}` : coach.phone,
       to_email: coach.email || '',
-      message: msg,
+      message: TEST_MODE ? `[TEST MODE - NOT SENT] ${msg}` : msg,
       shift_id,
     }]);
 
     results.push({ coach: coach.name, ...result });
   }
 
-  return res.status(200).json({ sent: results.length, results });
+  return res.status(200).json({ sent: results.length, testMode: TEST_MODE, results });
 }
