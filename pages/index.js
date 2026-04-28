@@ -373,6 +373,8 @@ export default function App(){
   const [availability,setAvailability]=useState(()=>{const m={};buildCoaches(RAW_SCHEDULE).forEach(c=>{m[c.id]=[...c.availability];});return m;});
   const [showCallout,setShowCallout]=useState(false);
   const [calloutDay,setCalloutDay]=useState("");
+  const [calloutDate,setCalloutDate]=useState("");
+  const [calloutWeekOffset,setCalloutWeekOffset]=useState(0);
   const [calloutClasses,setCalloutClasses]=useState([]);
   const [calloutNote,setCalloutNote]=useState("");
   const [calloutSent,setCalloutSent]=useState(false);
@@ -458,9 +460,8 @@ export default function App(){
   };
 
   const submitCallout=()=>{
-    if(!activeCoach||!calloutDay||calloutClasses.length===0)return;
-    const di=DAY_ORDER.indexOf(calloutDay);const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
-    const date=dt.toISOString().slice(0,10);
+    if(!activeCoach||!calloutDay||!calloutDate||calloutClasses.length===0)return;
+    const date=calloutDate;
     const newShifts=calloutClasses.map(({cls,time})=>({
       id:Date.now()+Math.random(),instructorName:activeCoach.name,
       date,day:calloutDay,time,cls,notes:calloutNote,
@@ -469,11 +470,12 @@ export default function App(){
     setShifts(p=>[...p,...newShifts]);
     const classList=calloutClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
     const mgr=STAFF_CONTACTS["Bryan, Julia"]||STAFF_CONTACTS["Cox, Monica"]||Object.values(STAFF_CONTACTS)[0];
-    setSmsLog(p=>[{to:"Monica / Julia",phone:fp(mgr.phone||""),msg:`⚠️ Call-out from ${sn(activeCoach.name)} — ${calloutDay}\n${classList}${calloutNote?`\nNote: ${calloutNote}`:""}`,time:new Date().toLocaleTimeString()},...p]);
+    const dateStr=new Date(calloutDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+    setSmsLog(p=>[{to:"Monica / Julia",phone:fp(mgr.phone||""),msg:`⚠️ Call-out from ${sn(activeCoach.name)} — ${dateStr}\n${classList}${calloutNote?`\nNote: ${calloutNote}`:""}`,time:new Date().toLocaleTimeString()},...p]);
     setCalloutSent(true);
   };
 
-  const resetCallout=()=>{setShowCallout(false);setCalloutDay("");setCalloutClasses([]);setCalloutNote("");setCalloutSent(false);};
+  const resetCallout=()=>{setShowCallout(false);setCalloutDay("");setCalloutDate("");setCalloutWeekOffset(0);setCalloutClasses([]);setCalloutNote("");setCalloutSent(false);};
 
   const claimShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
   const confirmShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"confirmed"}:s));
@@ -785,7 +787,7 @@ export default function App(){
               <button key={id} onClick={()=>setCoachTab(id)} style={{background:coachTab===id?bg:"transparent",color:coachTab===id?tc:C.text2,border:`1px solid ${coachTab===id?bc:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:coachTab===id?600:400}}>{l}</button>
             ))}
             <button onClick={()=>setScheduleCoach(coaches.find(c=>c.name===activeCoach.name)||activeCoach)} style={{background:"#ede9fe",color:"#5b21b6",border:"1px solid #c4b5fd",borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>📅 My Schedule</button>
-            <button onClick={()=>{setShowCallout(true);setCalloutSent(false);setCalloutDay("");setCalloutClasses([]);setCalloutNote("");}} style={{background:C.red,color:C.redText,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>🚨 Call-Out</button>
+            <button onClick={()=>{setShowCallout(true);setCalloutSent(false);setCalloutDay("");setCalloutDate("");setCalloutWeekOffset(0);setCalloutClasses([]);setCalloutNote("");}} style={{background:C.red,color:C.redText,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>🚨 Call-Out</button>
           </div>
           {coachTab==="open"&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
             {openForMe.length===0&&<div style={{...card,textAlign:"center",color:C.text2,padding:"2rem"}}>No open shifts match your available days.</div>}
@@ -825,7 +827,7 @@ export default function App(){
               <div style={{textAlign:"center",padding:"1.5rem 1rem"}}>
                 <div style={{fontSize:40,marginBottom:12}}>✅</div>
                 <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Call-Out Submitted</div>
-                <div style={{fontSize:12,color:C.text2,marginBottom:6}}>Your call-out for <strong>{calloutDay}</strong> has been sent to management.</div>
+                <div style={{fontSize:12,color:C.text2,marginBottom:6}}>Your call-out for <strong>{calloutDate?new Date(calloutDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"}):calloutDay}</strong> has been sent to management.</div>
                 <div style={{fontSize:11,color:C.text2,background:C.bg2,borderRadius:C.radiusSm,padding:"8px 12px",marginBottom:16,textAlign:"left"}}>
                   {calloutClasses.map(({time,cls},i)=><div key={i}>• {time} – {cls}</div>)}
                   {calloutNote&&<div style={{marginTop:6,color:C.text3}}>Note: {calloutNote}</div>}
@@ -844,11 +846,57 @@ export default function App(){
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   <div>
-                    <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Day</label>
-                    <select value={calloutDay} onChange={e=>{setCalloutDay(e.target.value);setCalloutClasses([]);}} style={inp}>
-                      <option value="">— select day —</option>
-                      {[...new Set(RAW_SCHEDULE.filter(r=>r.name===activeCoach.name).map(r=>r.day))].sort((a,b)=>DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b)).map(d=><option key={d}>{d}</option>)}
-                    </select>
+                    <label style={{fontSize:11,fontWeight:600,color:C.text2,display:"block",marginBottom:6}}>Select date</label>
+                    {(()=>{
+                      const coachDays=new Set(RAW_SCHEDULE.filter(r=>r.name===activeCoach.name).map(r=>r.day));
+                      const today=new Date();today.setHours(0,0,0,0);
+                      // Start of this week (Sunday)
+                      const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay()+calloutWeekOffset*7);
+                      const endOfWeek=new Date(startOfWeek);endOfWeek.setDate(startOfWeek.getDate()+6);
+                      const weekLabel=`${startOfWeek.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${endOfWeek.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;
+                      const days=DAY_ORDER.map((dayName,i)=>{
+                        const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);
+                        const iso=d.toISOString().slice(0,10);
+                        const isPast=d<today;
+                        const isToday=d.getTime()===today.getTime();
+                        const hasClasses=coachDays.has(dayName);
+                        const isSelected=calloutDate===iso;
+                        return{dayName,d,iso,isPast,isToday,hasClasses,isSelected,num:d.getDate()};
+                      });
+                      return(
+                        <div style={{background:C.bg2,borderRadius:C.radius,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 10px",borderBottom:`1px solid ${C.border}`,background:C.bg}}>
+                            <button onClick={()=>{if(calloutWeekOffset>0){setCalloutWeekOffset(w=>w-1);setCalloutDay("");setCalloutDate("");setCalloutClasses([]);}}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:C.radiusSm,width:26,height:26,cursor:calloutWeekOffset>0?"pointer":"default",fontSize:14,color:calloutWeekOffset>0?C.text:C.text3,display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                            <div style={{fontSize:11,fontWeight:600,color:C.text}}>{weekLabel}</div>
+                            <button onClick={()=>{setCalloutWeekOffset(w=>w+1);setCalloutDay("");setCalloutDate("");setCalloutClasses([]);}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:C.radiusSm,width:26,height:26,cursor:"pointer",fontSize:14,color:C.text,display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                          </div>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,padding:6}}>
+                            {DAY_ORDER.map(d=>(
+                              <div key={d} style={{textAlign:"center",fontSize:9,fontWeight:700,color:C.text3,textTransform:"uppercase",paddingBottom:2}}>{DAY_SHORT[d]}</div>
+                            ))}
+                            {days.map(({dayName,iso,isPast,isToday,hasClasses,isSelected,num})=>{
+                              const selectable=!isPast&&hasClasses;
+                              return(
+                                <div key={iso} onClick={()=>{if(selectable){setCalloutDay(dayName);setCalloutDate(iso);setCalloutClasses([]);}}}
+                                  style={{textAlign:"center",padding:"6px 2px",borderRadius:C.radiusSm,cursor:selectable?"pointer":"default",
+                                    background:isSelected?"#dc2626":isToday&&!isSelected?"#eff6ff":"transparent",
+                                    border:`1px solid ${isSelected?"#dc2626":isToday&&!isSelected?C.blueBorder:"transparent"}`,
+                                    opacity:isPast?0.3:1,position:"relative"}}>
+                                  <div style={{fontSize:12,fontWeight:isSelected||isToday?700:400,color:isSelected?"#fff":isToday?C.blueText:hasClasses&&!isPast?C.text:C.text3}}>{num}</div>
+                                  {hasClasses&&!isPast&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"rgba(255,255,255,0.7)":"#dc2626",margin:"2px auto 0"}}/>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {calloutDate&&<div style={{padding:"6px 10px",borderTop:`1px solid ${C.border}`,fontSize:11,color:C.text2,background:C.bg}}>
+                            📅 {new Date(calloutDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}
+                          </div>}
+                          {!calloutDate&&<div style={{padding:"6px 10px",borderTop:`1px solid ${C.border}`,fontSize:11,color:C.text3,background:C.bg}}>
+                            Tap a day with a red dot — those are your scheduled days.
+                          </div>}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {calloutDay&&(()=>{
                     const dayClasses=RAW_SCHEDULE.filter(r=>r.name===activeCoach.name&&r.day===calloutDay).sort((a,b)=>a.time.localeCompare(b.time));
@@ -890,7 +938,7 @@ export default function App(){
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
                   <button onClick={resetCallout} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
-                  <button onClick={submitCallout} disabled={calloutClasses.length===0} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:calloutClasses.length>0?"#dc2626":"#d1d5db",color:calloutClasses.length>0?"#fff":"#9ca3af",fontWeight:600,cursor:calloutClasses.length>0?"pointer":"default",fontSize:12}}>Submit Call-Out</button>
+                  <button onClick={submitCallout} disabled={calloutClasses.length===0||!calloutDate} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:calloutClasses.length>0&&calloutDate?"#dc2626":"#d1d5db",color:calloutClasses.length>0&&calloutDate?"#fff":"#9ca3af",fontWeight:600,cursor:calloutClasses.length>0&&calloutDate?"pointer":"default",fontSize:12}}>Submit Call-Out</button>
                 </div>
               </>
             )}
