@@ -341,16 +341,7 @@ function SBadge({status}){
 
 function Logo(){
   return(
-    <svg width="72" height="46" viewBox="0 0 200 130" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="100" cy="65" rx="98" ry="62" fill="white" stroke="#222" strokeWidth="5"/>
-      {[[100,30],[100,42],[100,54],[100,66],[100,78],[100,90],[100,102]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={i===3?7:5} fill="#29b6e8" opacity="0.9"/>)}
-      {[[82,28],[70,22],[60,20],[72,34],[62,30],[52,28],[80,40],[68,38],[58,38],[76,50],[66,48]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={4} fill="#29b6e8" opacity="0.85"/>)}
-      {[[118,28],[130,22],[140,20],[128,34],[138,30],[148,28],[120,40],[132,38],[142,38],[124,50],[134,48]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={4} fill="#29b6e8" opacity="0.85"/>)}
-      {[[85,75],[75,82],[65,88],[78,90],[68,96]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={3} fill="#29b6e8" opacity="0.8"/>)}
-      {[[115,75],[125,82],[135,88],[122,90],[132,96]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={3} fill="#29b6e8" opacity="0.8"/>)}
-      <text x="28" y="88" fontFamily="Georgia,serif" fontSize="27" fontStyle="italic" fontWeight="bold" fill="#111">Bay Aerials</text>
-      <text x="50" y="108" fontFamily="Arial,sans-serif" fontSize="13" fontWeight="bold" fill="#111" letterSpacing="3">GYMNASTICS</text>
-    </svg>
+    <img src="/BayAerials.png" height="46" alt="Bay Aerials Gymnastics" style={{objectFit:"contain"}}/>
   );
 }
 
