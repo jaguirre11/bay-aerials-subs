@@ -415,37 +415,7 @@ export default function App(){
     });
   };
 
-  const [showCallOut,setShowCallOut]=useState(false);
-  const [callOutShift,setCallOutShift]=useState(null);
-  const [callOutNote,setCallOutNote]=useState("");
-
-  const [coachWeekOffset,setCoachWeekOffset]=useState(0);
-
-  const coachBaseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+coachWeekOffset*7);return d;},[coachWeekOffset]);
-  const coachWeekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(coachBaseDate);dt.setDate(coachBaseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[coachBaseDate]);
-  const coachFmtRange=()=>{const e=new Date(coachBaseDate);e.setDate(coachBaseDate.getDate()+6);return`${coachBaseDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;};
-
-  const submitCallOut=()=>{
-    if(!callOutShift)return;
-    const di=DAY_ORDER.indexOf(callOutShift.day);
-    const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
-    const date=dt.toISOString().slice(0,10);
-    const id=Date.now();
-    const shift={id,instructorName:activeCoach.name,date,day:callOutShift.day,time:callOutShift.time,cls:callOutShift.cls,notes:callOutNote||"Coach called out",status:"open",claimedBy:null,claimedByName:null};
-    setShifts(p=>[...p,shift]);
-    // Notify eligible coaches
-    const eligible=coaches.filter(c=>{
-      if(c.name===activeCoach.name)return false;
-      if(!(availability[c.id]||[]).includes(callOutShift.day))return false;
-      return !RAW_SCHEDULE.some(r=>r.name===c.name&&r.day===callOutShift.day&&r.time===callOutShift.time);
-    });
-    const msg=`Bay Aerials: Sub needed!\n📅 ${callOutShift.day} ${callOutShift.time}\n🤸 ${callOutShift.cls}\nCovering: ${sn(activeCoach.name)}\nCode: `;
-    eligible.forEach(c=>{const ct=STAFF_CONTACTS[c.name]||{};setSmsLog(p=>[{to:sn(c.name),phone:fp(ct.phone||""),msg:msg+c.code,time:new Date().toLocaleTimeString()},...p]);});
-    // Notify admin
-    const ct=STAFF_CONTACTS[activeCoach.name]||{};
-    setSmsLog(p=>[{to:"Johnny (Admin)",phone:"",msg:`⚠️ Call-out: ${sn(activeCoach.name)} can't make ${callOutShift.day} ${callOutShift.time} – ${callOutShift.cls}. ${callOutNote?`Note: ${callOutNote}`:""} Shift posted as open.`,time:new Date().toLocaleTimeString()},...p]);
-    setShowCallOut(false);setCallOutShift(null);setCallOutNote("");
-  };
+  const postShift=()=>{
     if(!form.instructorName||selectedClasses.length===0)return;
     const di=DAY_ORDER.indexOf(form.day);const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+di);
     const date=dt.toISOString().slice(0,10);
@@ -791,7 +761,6 @@ export default function App(){
             {[["Open shifts","open",C.yellow,C.yellowText,C.yellowBorder],["My shifts","mine",C.blue,C.blueText,C.blueBorder],["Availability","avail",C.green,C.greenText,C.greenBorder]].map(([l,id,bg,tc,bc])=>(
               <button key={id} onClick={()=>setCoachTab(id)} style={{background:coachTab===id?bg:"transparent",color:coachTab===id?tc:C.text2,border:`1px solid ${coachTab===id?bc:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:coachTab===id?600:400}}>{l}</button>
             ))}
-            <button onClick={()=>setCoachTab("callout")} style={{background:coachTab==="callout"?C.red:"transparent",color:coachTab==="callout"?C.redText:C.text2,border:`1px solid ${coachTab==="callout"?C.redBorder:C.border}`,borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:coachTab==="callout"?600:400}}>🚨 Call Out</button>
             <button onClick={()=>setScheduleCoach(coaches.find(c=>c.name===activeCoach.name)||activeCoach)} style={{background:"#ede9fe",color:"#5b21b6",border:"1px solid #c4b5fd",borderRadius:C.radiusSm,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:600}}>📅 My Schedule</button>
           </div>
           {coachTab==="open"&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -821,59 +790,6 @@ export default function App(){
               {DAY_ORDER.map(d=>{const on=(availability[activeCoach.id]||[]).includes(d);return<button key={d} onClick={()=>toggleDay(d)} style={{padding:"6px 12px",borderRadius:C.radiusSm,border:`1px solid ${on?C.blueBorder:C.border}`,background:on?C.blue:"transparent",color:on?C.blueText:C.text2,fontWeight:on?600:400,cursor:"pointer",fontSize:12}}>{DAY_SHORT[d]}</button>;})}
             </div>
           </div>)}
-          {coachTab==="callout"&&(
-            <div>
-              <div style={{...card,background:C.red,border:`1px solid ${C.redBorder}`,marginBottom:12}}>
-                <div style={{fontWeight:700,fontSize:14,color:C.redText,marginBottom:4}}>🚨 Can't Make a Shift?</div>
-                <div style={{fontSize:12,color:C.redText,opacity:0.85}}>Select the class you can't cover. Your manager will be notified and a sub will be found automatically.</div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {DAY_ORDER.map(day=>{
-                  const dayClasses=RAW_SCHEDULE.filter(r=>r.name===activeCoach.name&&r.day===day);
-                  if(dayClasses.length===0)return null;
-                  return(
-                    <div key={day}>
-                      <div style={{fontSize:11,fontWeight:700,color:C.text2,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6,paddingLeft:4}}>{day}</div>
-                      {dayClasses.map((r,i)=>(
-                        <div key={i} style={{...card,display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
-                          <div style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:C.radiusSm,padding:"5px 8px",textAlign:"center",minWidth:90}}>
-                            <div style={{fontSize:10,fontWeight:600,color:C.text}}>{r.time.split(" - ")[0]}</div>
-                            <div style={{fontSize:9,color:C.text2}}>{r.time.split(" - ")[1]}</div>
-                          </div>
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:13,fontWeight:600,color:C.text}}>{r.cls}</div>
-                          </div>
-                          <button onClick={()=>{setCallOutShift(r);setShowCallOut(true);}} style={{background:C.red,color:C.redText,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"5px 10px",fontSize:11,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>Can't make it</button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* CALL OUT MODAL */}
-      {showCallOut&&callOutShift&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
-          <div style={{...card,width:360,maxWidth:"92vw"}}>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>🚨 Confirm Call-Out</div>
-            <div style={{background:C.red,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"10px 12px",marginBottom:14}}>
-              <div style={{fontSize:13,fontWeight:600,color:C.redText}}>{callOutShift.cls}</div>
-              <div style={{fontSize:11,color:C.redText,opacity:0.85}}>{callOutShift.day} · {callOutShift.time}</div>
-            </div>
-            <div style={{fontSize:12,color:C.text2,marginBottom:10}}>Your manager will be notified and a sub will be found. Add a note if needed.</div>
-            <div>
-              <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Note (optional)</label>
-              <input value={callOutNote} onChange={e=>setCallOutNote(e.target.value)} placeholder="e.g. sick, family emergency..." style={inp}/>
-            </div>
-            <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
-              <button onClick={()=>{setShowCallOut(false);setCallOutShift(null);setCallOutNote("");}} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
-              <button onClick={submitCallOut} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:"none",background:C.redText,color:"#fff",fontWeight:600,cursor:"pointer",fontSize:12}}>Submit Call-Out</button>
-            </div>
-          </div>
         </div>
       )}
 
