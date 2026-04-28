@@ -1,3 +1,10 @@
+const TEST_MODE = process.env.SMS_TEST_MODE === 'true';
+
+// ...later, before client.messages.create():
+if (TEST_MODE) {
+  console.log(`[TEST MODE] Would send to ${phone}: ${message}`);
+  return res.status(200).json({ success: true, testMode: true });
+}
 import { supabaseAdmin } from '../../lib/supabase';
 import { sendSMS } from '../../lib/twilio';
 
