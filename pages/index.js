@@ -52,7 +52,7 @@ const STAFF_CONTACTS={
   "Zamarripa, Liliana":{phone:"5104029564",email:"ririana922@gmail.com"},
 };
 
-const RAW_SCHEDULE=[
+const DEFAULT_SCHEDULE=[
   {name:"Bryan, Julia",day:"Monday",time:"3:30PM - 4:20PM",cls:"Ninja Five"},
   {name:"Bryan, Julia",day:"Monday",time:"6:30PM - 7:20PM",cls:"Advanced Purple/Orange"},
   {name:"Bryan, Julia",day:"Monday",time:"4:30PM - 6:30PM",cls:"Future Team - Dragonflies"},
@@ -371,7 +371,7 @@ export default function App(){
   const [editCoach,setEditCoach]=useState(null);
   const [coachForm,setCoachForm]=useState({name:"",phone:"",email:""});
   const [loadingCoaches,setLoadingCoaches]=useState(false);
-  const [availability,setAvailability]=useState(()=>{const m={};buildCoaches(RAW_SCHEDULE).forEach(c=>{m[c.id]=[...c.availability];});return m;});
+  const [availability,setAvailability]=useState({});
   const [showCallout,setShowCallout]=useState(false);
   const [calloutDay,setCalloutDay]=useState("");
   const [calloutDate,setCalloutDate]=useState("");
@@ -379,9 +379,31 @@ export default function App(){
   const [calloutClasses,setCalloutClasses]=useState([]);
   const [calloutNote,setCalloutNote]=useState("");
   const [calloutSent,setCalloutSent]=useState(false);
+  const [schedule,setSchedule]=useState(DEFAULT_SCHEDULE);
+  const [scheduleLoaded,setScheduleLoaded]=useState(false);
 
-  const coaches=useMemo(()=>buildCoaches(RAW_SCHEDULE),[]);
+  const coaches=useMemo(()=>buildCoaches(schedule),[schedule]);
+
+  // Initialize availability whenever coaches change
+  useEffect(()=>{
+    setAvailability(prev=>{
+      const m={...prev};
+      buildCoaches(schedule).forEach(c=>{if(!m[c.id])m[c.id]=[...c.availability];});
+      return m;
+    });
+  },[schedule]);
+
   const ff=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const fetchSchedule=useCallback(async()=>{
+    try{
+      const res=await fetch("/api/schedule");
+      const data=await res.json();
+      if(res.ok&&Array.isArray(data)&&data.length>0){setSchedule(data);}
+      else{setSchedule(DEFAULT_SCHEDULE);}
+    }catch(e){setSchedule(DEFAULT_SCHEDULE);}
+    finally{setScheduleLoaded(true);}
+  },[]);
 
   const fetchDbCoaches=useCallback(async()=>{
     setLoadingCoaches(true);
@@ -395,13 +417,13 @@ export default function App(){
     }finally{setLoadingCoaches(false);}
   },[]);
 
-  useEffect(()=>{fetchDbCoaches();},[fetchDbCoaches]);
+  useEffect(()=>{fetchDbCoaches();fetchSchedule();},[fetchDbCoaches,fetchSchedule]);
 
   const baseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+weekOffset*7);return d;},[weekOffset]);
   const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[baseDate]);
   const fmtRange=()=>{const e=new Date(baseDate);e.setDate(baseDate.getDate()+6);return`${baseDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;};
 
-  const iSched=useMemo(()=>form.instructorName?RAW_SCHEDULE.filter(r=>r.name===form.instructorName):[],[form.instructorName]);
+  const iSched=useMemo(()=>form.instructorName?schedule.filter(r=>r.name===form.instructorName):[],[form.instructorName,schedule]);
   const aDays=useMemo(()=>[...new Set(iSched.map(r=>r.day))].sort((a,b)=>DAY_ORDER.indexOf(a)-DAY_ORDER.indexOf(b)),[iSched]);
   const cOnDay=useMemo(()=>iSched.filter(r=>r.day===form.day).map(r=>({time:r.time,cls:r.cls})),[iSched,form.day]);
 
@@ -442,7 +464,7 @@ export default function App(){
       if(!(availability[c.id]||[]).includes(form.day))return false;
       // Check they're not teaching during any of the selected times
       return selectedClasses.every(({time})=>
-        !RAW_SCHEDULE.some(r=>r.name===c.name&&r.day===form.day&&r.time===time)
+        !schedule.some(r=>r.name===c.name&&r.day===form.day&&r.time===time)
       );
     });
 
@@ -505,7 +527,7 @@ export default function App(){
 
   const getPrintData=day=>{
     const date=weekDates[day];const dayShifts=shifts.filter(s=>s.day===day&&s.date===date);
-    return RAW_SCHEDULE.filter(r=>r.day===day).map(r=>({time:r.time,cls:r.cls,instructorName:r.name,subShift:dayShifts.find(s=>s.instructorName===r.name)})).sort((a,b)=>a.time.localeCompare(b.time));
+    return schedule.filter(r=>r.day===day).map(r=>({time:r.time,cls:r.cls,instructorName:r.name,subShift:dayShifts.find(s=>s.instructorName===r.name)})).sort((a,b)=>a.time.localeCompare(b.time));
   };
 
   const Tab=({label,id})=>(
@@ -529,7 +551,7 @@ export default function App(){
               <input type="file" accept=".csv,.txt,.tsv" style={{display:"none"}} onChange={e=>{
                 const file=e.target.files[0];if(!file)return;
                 const reader=new FileReader();
-                reader.onload=ev=>{
+                reader.onload=async ev=>{
                   try{
                     const text=ev.target.result.replace(/^\ufeff/,"");
                     const lines=text.trim().split("\n");
@@ -550,7 +572,23 @@ export default function App(){
                         days.forEach((day,i)=>{if(cls)parsed.push({name:cur,day,time:times[i]||times[0]||cols[2],cls});});
                       }
                     }
-                    if(parsed.length>0){alert(`✓ Imported ${parsed.length} classes from ${[...new Set(parsed.map(r=>r.name))].length} instructors.\n\nNote: "Clean up" shifts were excluded.`);}
+                    if(parsed.length>0){
+                      // Save to database
+                      try{
+                        const saveRes=await fetch("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({schedule:parsed})});
+                        if(saveRes.ok){
+                          setSchedule(parsed);
+                          alert(`✓ Imported & saved ${parsed.length} classes from ${[...new Set(parsed.map(r=>r.name))].length} instructors.\n\n"Clean up" shifts excluded.\nSchedule saved — it will persist across sessions.`);
+                        }else{
+                          // DB save failed — still update local state
+                          setSchedule(parsed);
+                          alert(`✓ Imported ${parsed.length} classes (local only — database save failed). Try again or check Supabase.`);
+                        }
+                      }catch(saveErr){
+                        setSchedule(parsed);
+                        alert(`✓ Imported ${parsed.length} classes (local only — could not reach server).`);
+                      }
+                    }
                     else{alert("No data found. Export Staff Schedule as CSV from iClassPro.");}
                   }catch(err){alert("Could not parse file: "+err.message);}
                 };
@@ -858,7 +896,7 @@ export default function App(){
                   <div>
                     <label style={{fontSize:11,fontWeight:600,color:C.text2,display:"block",marginBottom:6}}>Select date</label>
                     {(()=>{
-                      const coachDays=new Set(RAW_SCHEDULE.filter(r=>r.name===activeCoach.name).map(r=>r.day));
+                      const coachDays=new Set(schedule.filter(r=>r.name===activeCoach.name).map(r=>r.day));
                       const today=new Date();today.setHours(0,0,0,0);
                       // Start of this week (Sunday)
                       const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay()+calloutWeekOffset*7);
@@ -909,7 +947,7 @@ export default function App(){
                     })()}
                   </div>
                   {calloutDay&&(()=>{
-                    const dayClasses=RAW_SCHEDULE.filter(r=>r.name===activeCoach.name&&r.day===calloutDay).sort((a,b)=>a.time.localeCompare(b.time));
+                    const dayClasses=schedule.filter(r=>r.name===activeCoach.name&&r.day===calloutDay).sort((a,b)=>a.time.localeCompare(b.time));
                     return(
                       <div>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
@@ -996,12 +1034,12 @@ export default function App(){
       {/* COACH SCHEDULE MODAL */}
       {scheduleCoach&&(()=>{
         const ct=STAFF_CONTACTS[scheduleCoach.name]||{};const phone=fp(ct.phone||"");
-        const byDay=DAY_ORDER.map(day=>({day,classes:RAW_SCHEDULE.filter(r=>r.name===scheduleCoach.name&&r.day===day).sort((a,b)=>a.time.localeCompare(b.time))})).filter(d=>d.classes.length>0);
+        const byDay=DAY_ORDER.map(day=>({day,classes:schedule.filter(r=>r.name===scheduleCoach.name&&r.day===day).sort((a,b)=>a.time.localeCompare(b.time))})).filter(d=>d.classes.length>0);
         return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:16}}>
           <div style={{background:C.bg,borderRadius:C.radius,border:`1px solid ${C.border}`,width:440,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{background:C.blue,borderBottom:`1px solid ${C.blueBorder}`,padding:"14px 18px",borderRadius:`${C.radius} ${C.radius} 0 0`,display:"flex",alignItems:"center",gap:10}}>
               <Avatar name={scheduleCoach.name} size={40}/>
-              <div style={{flex:1}}><div style={{fontWeight:700,fontSize:15,color:C.blueText}}>{sn(scheduleCoach.name)}</div><div style={{fontSize:10,color:C.blueText,opacity:0.8}}>{RAW_SCHEDULE.filter(r=>r.name===scheduleCoach.name).length} classes/week{phone?` · ${phone}`:""}</div></div>
+              <div style={{flex:1}}><div style={{fontWeight:700,fontSize:15,color:C.blueText}}>{sn(scheduleCoach.name)}</div><div style={{fontSize:10,color:C.blueText,opacity:0.8}}>{schedule.filter(r=>r.name===scheduleCoach.name).length} classes/week{phone?` · ${phone}`:""}</div></div>
               <button onClick={()=>setScheduleCoach(null)} style={{background:"transparent",border:`1px solid ${C.blueBorder}`,borderRadius:C.radiusSm,padding:"3px 8px",fontSize:11,cursor:"pointer",color:C.blueText}}>✕</button>
             </div>
             <div style={{padding:"14px 18px"}}>
@@ -1020,7 +1058,7 @@ export default function App(){
       {/* FIND SUB MODAL */}
       {findSubShift&&(()=>{
         const s=findSubShift;
-        const busy=new Set(RAW_SCHEDULE.filter(r=>r.day===s.day&&r.time===s.time).map(r=>r.name));
+        const busy=new Set(schedule.filter(r=>r.day===s.day&&r.time===s.time).map(r=>r.name));
         const best=coaches.filter(c=>c.name!==s.instructorName&&!busy.has(c.name)&&c.classes.includes(s.cls)&&(availability[c.id]||[]).includes(s.day));
         const ok=coaches.filter(c=>c.name!==s.instructorName&&!busy.has(c.name)&&!c.classes.includes(s.cls)&&(availability[c.id]||[]).includes(s.day));
         const unavail=coaches.filter(c=>c.name!==s.instructorName&&!busy.has(c.name)&&!(availability[c.id]||[]).includes(s.day));
@@ -1061,7 +1099,7 @@ export default function App(){
               {form.instructorName&&<div>
                 <label style={{fontSize:11,fontWeight:600,color:C.text2,display:"block",marginBottom:6}}>Select date</label>
                 {(()=>{
-                  const instrDays=new Set(RAW_SCHEDULE.filter(r=>r.name===form.instructorName).map(r=>r.day));
+                  const instrDays=new Set(schedule.filter(r=>r.name===form.instructorName).map(r=>r.day));
                   const today=new Date();today.setHours(0,0,0,0);
                   const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay()+postWeekOffset*7);
                   const endOfWeek=new Date(startOfWeek);endOfWeek.setDate(startOfWeek.getDate()+6);
