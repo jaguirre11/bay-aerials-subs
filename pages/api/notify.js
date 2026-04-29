@@ -3,6 +3,18 @@ import { sendSMS } from '../../lib/twilio';
 
 const TEST_MODE = process.env.SMS_TEST_MODE === 'true';
 
+// Short last-name shortener: "Bryan, Julia" -> "Julia B."
+function shortName(fullName) {
+  if (!fullName) return '';
+  const parts = fullName.split(',').map(s => s.trim());
+  if (parts.length === 2) {
+    const last = parts[0];
+    const first = parts[1];
+    return `${first} ${last.charAt(0)}.`;
+  }
+  return fullName;
+}
+
 // Only send texts between 8 AM and 8 PM Pacific time
 function isWithinTextingHours() {
   const now = new Date();
@@ -13,7 +25,7 @@ function isWithinTextingHours() {
       hour12: false,
     })
   );
-  return pacificHour >= 8 && pacificHour < 20; // 8 AM to 8 PM
+  return pacificHour >= 8 && pacificHour < 20;
 }
 
 function getCurrentPacificHour() {
@@ -26,30 +38,39 @@ function getCurrentPacificHour() {
   });
 }
 
+function formatLongDate(isoDate) {
+  if (!isoDate) return '';
+  return new Date(isoDate + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).end();
   }
 
-  const { shift_id, coaches } = req.body;
+  const { shift_id, shift_ids, coaches } = req.body;
 
-  if (!shift_id || !coaches?.length) {
-    return res.status(400).json({ error: 'shift_id and coaches are required' });
+  if ((!shift_id && !shift_ids) || !coaches?.length) {
+    return res.status(400).json({ error: 'shift_id (or shift_ids) and coaches are required' });
   }
 
-  // Check texting hours
+  const idsToFetch = shift_ids && shift_ids.length > 0 ? shift_ids : [shift_id];
+
   if (!isWithinTextingHours()) {
     const currentTime = getCurrentPacificHour();
     console.log(`SMS blocked — outside texting hours (current: ${currentTime} Pacific)`);
 
-    // Log the blocked attempt in Supabase so admin can see it
     await supabaseAdmin.from('sms_log').insert([{
       to_name: `${coaches.length} coaches`,
       to_phone: 'BLOCKED',
       to_email: '',
       message: `SMS blocked — sent outside texting hours (${currentTime} Pacific). Texts will not be sent between 8 PM and 8 AM.`,
-      shift_id,
+      shift_id: idsToFetch[0],
     }]);
 
     return res.status(200).json({
@@ -60,14 +81,19 @@ export default async function handler(req, res) {
     });
   }
 
-  // Fetch the shift for message content
-  const { data: shift, error: shiftErr } = await supabaseAdmin
+  const { data: shifts, error: shiftErr } = await supabaseAdmin
     .from('shifts')
     .select('*')
-    .eq('id', shift_id)
-    .single();
+    .in('id', idsToFetch);
 
   if (shiftErr) return res.status(500).json({ error: shiftErr.message });
+  if (!shifts || shifts.length === 0) return res.status(404).json({ error: 'No shifts found' });
+
+  const firstShift = shifts[0];
+  const dateStr = formatLongDate(firstShift.date);
+  const instructorShort = shortName(firstShift.instructor_name);
+  const sorted = [...shifts].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const classList = sorted.map(s => `  • ${s.time} – ${s.cls}`).join('\n');
 
   const results = [];
 
@@ -75,12 +101,10 @@ export default async function handler(req, res) {
     if (!coach.phone) continue;
 
     const msg =
-      `Bay Aerials: Sub needed!\n` +
-      `📅 ${shift.day} ${shift.time}\n` +
-      `🤸 ${shift.cls}\n` +
-      `Covering: ${shift.instructor_name}\n` +
-      `Log in with code: ${coach.code}\n` +
-      `bayaerials-subs.vercel.app`;
+      `Bay Aerials: Sub needed ${dateStr}!\n` +
+      `${classList}\n` +
+      `Covering: ${instructorShort}\n` +
+      `Code: ${coach.code}`;
 
     let result;
     if (TEST_MODE) {
@@ -95,7 +119,7 @@ export default async function handler(req, res) {
       to_phone: TEST_MODE ? `[TEST] ${coach.phone}` : coach.phone,
       to_email: coach.email || '',
       message: TEST_MODE ? `[TEST MODE - NOT SENT] ${msg}` : msg,
-      shift_id,
+      shift_id: idsToFetch[0],
     }]);
 
     results.push({ coach: coach.name, ...result });
