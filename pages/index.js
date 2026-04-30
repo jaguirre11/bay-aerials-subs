@@ -629,7 +629,23 @@ export default function App(){
       fetchSmsLog();
     }catch(e){console.error("Remove shift API failed:",e);}
   };
-  const assignSub=(shift,coach)=>{setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));setFindSubShift(null);};
+  const assignSub=async(shift,coach)=>{
+    setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));
+    setFindSubShift(null);
+    try{
+      // Find the DB UUID for the coach
+      const dbCoach=dbCoaches.find(d=>d.name===coach.name);
+      // 1. Mark the shift as claimed in the DB (this also texts admin + the coach via /api/claim)
+      await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        shift_id:shift.id,
+        action:"claim",
+        coach_id:dbCoach?.id||null,
+        coach_name:coach.name
+      })});
+      fetchSmsLog();
+      fetchShiftsFromDb();
+    }catch(e){console.error("Assign sub API failed:",e);}
+  };
   const loginCoach=()=>{
     const code=coachCode.toUpperCase().trim();
     // First, try matching against the database (canonical codes)
