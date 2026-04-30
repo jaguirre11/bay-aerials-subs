@@ -631,9 +631,22 @@ export default function App(){
   };
   const assignSub=(shift,coach)=>{setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));setFindSubShift(null);};
   const loginCoach=()=>{
-    const c=coaches.find(x=>x.code===coachCode.toUpperCase().trim());
+    const code=coachCode.toUpperCase().trim();
+    // First, try matching against the database (canonical codes)
+    const dbMatch=dbCoaches.find(d=>d.code===code&&d.active!==false);
+    if(dbMatch){
+      // Find the matching schedule-derived coach record (for availability key, classes, etc.)
+      const scheduleMatch=coaches.find(c=>c.name===dbMatch.name);
+      const merged=scheduleMatch
+        ?{...scheduleMatch,dbId:dbMatch.id,phone:dbMatch.phone,email:dbMatch.email,code:dbMatch.code}
+        :{id:dbMatch.id,name:dbMatch.name,code:dbMatch.code,phone:dbMatch.phone,email:dbMatch.email,dbId:dbMatch.id,classes:[]};
+      setActiveCoach(merged);
+      setLoginErr("");
+      return;
+    }
+    // Fallback: try matching against schedule-derived codes (for backwards compatibility)
+    const c=coaches.find(x=>x.code===code);
     if(c){
-      // Look up DB record so we have the UUID for API calls (without breaking integer-keyed availability)
       const dbCoach=dbCoaches.find(d=>d.name===c.name);
       const merged=dbCoach?{...c,dbId:dbCoach.id,phone:dbCoach.phone,email:dbCoach.email}:c;
       setActiveCoach(merged);
