@@ -669,7 +669,7 @@ export default function App(){
       setLoginErr("");
     }else setLoginErr("Code not found. Contact Johnny.");
   };
-  const myShifts=activeCoach?shifts.filter(s=>s.claimedBy===activeCoach.id):[];
+  const myShifts=activeCoach?shifts.filter(s=>s.claimedBy===activeCoach.dbId||s.claimedByName===activeCoach.name):[];
   const openForMe=activeCoach?shifts.filter(s=>s.status==="open"&&(availability[activeCoach.id]||[]).includes(s.day)):[];
   const toggleDay=d=>{if(!activeCoach)return;setAvailability(p=>{const c=p[activeCoach.id]||[];return{...p,[activeCoach.id]:c.includes(d)?c.filter(x=>x!==d):[...c,d]};});};
 
