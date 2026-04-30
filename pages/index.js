@@ -540,19 +540,67 @@ export default function App(){
     setSelectedClasses([]);
   };
 
-  const submitCallout=()=>{
+  const submitCallout=async()=>{
     if(!activeCoach||!calloutDay||!calloutDate||calloutClasses.length===0)return;
     const date=calloutDate;
-    const newShifts=calloutClasses.map(({cls,time})=>({
-      id:Date.now()+Math.random(),instructorName:activeCoach.name,
-      date,day:calloutDay,time,cls,notes:calloutNote,
-      status:"open",claimedBy:null,claimedByName:null
-    }));
-    setShifts(p=>[...p,...newShifts]);
-    const classList=calloutClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
-    const mgr=STAFF_CONTACTS["Bryan, Julia"]||STAFF_CONTACTS["Cox, Monica"]||Object.values(STAFF_CONTACTS)[0];
-    const dateStr=new Date(calloutDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
-    setSmsLog(p=>[{to:"Monica / Julia",phone:fp(mgr.phone||""),msg:`⚠️ Call-out from ${sn(activeCoach.name)} — ${dateStr}\n${classList}${calloutNote?`\nNote: ${calloutNote}`:""}`,time:new Date().toLocaleTimeString()},...p]);
+
+    // Find eligible coaches — same logic as postShift
+    const eligible=coaches.filter(c=>{
+      if(c.name===activeCoach.name)return false;
+      if(!(availability[c.id]||[]).includes(calloutDay))return false;
+      return calloutClasses.every(({time})=>
+        !schedule.some(r=>r.name===c.name&&r.day===calloutDay&&r.time===time)
+      );
+    });
+
+    try{
+      // 1. Save each called-out class as an open shift in the DB
+      const created=[];
+      for(const {cls,time} of calloutClasses){
+        const res=await fetch("/api/shifts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({instructor_name:activeCoach.name,date,day:calloutDay,time,cls,notes:calloutNote})});
+        if(res.ok){const data=await res.json();created.push(data);}
+      }
+
+      // 2. Notify eligible coaches with the standard sub-needed text
+      if(created.length>0&&eligible.length>0){
+        const enriched=eligible.map(c=>{
+          const dbCoach=dbCoaches.find(d=>d.name===c.name);
+          const ct=STAFF_CONTACTS[c.name]||{};
+          return{
+            id:dbCoach?.id||c.id,
+            name:c.name,
+            phone:dbCoach?.phone||ct.phone||"",
+            email:dbCoach?.email||ct.email||"",
+            code:dbCoach?.code||c.code
+          };
+        }).filter(c=>c.phone);
+        if(enriched.length>0){
+          await fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+            shift_ids:created.map(s=>s.id),
+            coaches:enriched
+          })});
+        }
+      }
+
+      // 3. Notify admin (Julia/Monica) that a call-out happened
+      if(created.length>0){
+        await fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          shift_ids:created.map(s=>s.id),
+          callout_admin:true,
+          callout_coach_name:activeCoach.name,
+          callout_note:calloutNote||""
+        })});
+      }
+
+      // 4. Refresh local state
+      await fetchShiftsFromDb();
+      await fetchSmsLog();
+    }catch(e){
+      console.error("Call-out failed:",e);
+      alert("Could not submit call-out. Check connection and try again.");
+      return;
+    }
+
     setCalloutSent(true);
   };
 
