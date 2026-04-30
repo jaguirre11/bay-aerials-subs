@@ -384,11 +384,11 @@ export default function App(){
 
   const coaches=useMemo(()=>buildCoaches(schedule),[schedule]);
 
-  // Initialize availability whenever coaches change
+  // Default each coach to available every day; coaches can toggle days off in their portal
   useEffect(()=>{
     setAvailability(prev=>{
       const m={...prev};
-      buildCoaches(schedule).forEach(c=>{if(!m[c.id])m[c.id]=[...c.availability];});
+      buildCoaches(schedule).forEach(c=>{if(!m[c.id])m[c.id]=[...DAY_ORDER];});
       return m;
     });
   },[schedule]);
