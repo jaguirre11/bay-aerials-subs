@@ -506,10 +506,24 @@ export default function App(){
 
       // 2. Notify eligible coaches in ONE batched text covering all the new shift IDs
       if(created.length>0&&eligible.length>0){
-        await fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-          shift_ids:created.map(s=>s.id),
-          coaches:eligible.map(c=>({id:c.id,name:c.name,phone:c.phone,email:c.email,code:c.code}))
-        })});
+        // Enrich eligible coaches with phone/email/code from DB (or STAFF_CONTACTS fallback)
+        const enriched=eligible.map(c=>{
+          const dbCoach=dbCoaches.find(d=>d.name===c.name);
+          const ct=STAFF_CONTACTS[c.name]||{};
+          return{
+            id:dbCoach?.id||c.id,
+            name:c.name,
+            phone:dbCoach?.phone||ct.phone||"",
+            email:dbCoach?.email||ct.email||"",
+            code:dbCoach?.code||c.code
+          };
+        }).filter(c=>c.phone);
+        if(enriched.length>0){
+          await fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+            shift_ids:created.map(s=>s.id),
+            coaches:enriched
+          })});
+        }
       }
 
       // 3. Refresh shifts and SMS log from DB
@@ -547,8 +561,9 @@ export default function App(){
   const claimShift=async(id)=>{
     setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
     try{
-      await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shift_id:id,action:"claim",coach_id:activeCoach.id,coach_name:activeCoach.name})});
+      await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shift_id:id,action:"claim",coach_id:activeCoach.dbId||null,coach_name:activeCoach.name})});
       fetchSmsLog();
+      fetchShiftsFromDb();
     }catch(e){console.error("Claim API failed:",e);}
   };
   const confirmShift=async(id)=>{
@@ -556,6 +571,7 @@ export default function App(){
     try{
       await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shift_id:id,action:"confirm"})});
       fetchSmsLog();
+      fetchShiftsFromDb();
     }catch(e){console.error("Confirm API failed:",e);}
   };
   const removeShift=async(id)=>{
@@ -566,7 +582,16 @@ export default function App(){
     }catch(e){console.error("Remove shift API failed:",e);}
   };
   const assignSub=(shift,coach)=>{setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));setFindSubShift(null);};
-  const loginCoach=()=>{const c=coaches.find(x=>x.code===coachCode.toUpperCase().trim());if(c){setActiveCoach(c);setLoginErr("");}else setLoginErr("Code not found. Contact Johnny.");};
+  const loginCoach=()=>{
+    const c=coaches.find(x=>x.code===coachCode.toUpperCase().trim());
+    if(c){
+      // Look up DB record so we have the UUID for API calls (without breaking integer-keyed availability)
+      const dbCoach=dbCoaches.find(d=>d.name===c.name);
+      const merged=dbCoach?{...c,dbId:dbCoach.id,phone:dbCoach.phone,email:dbCoach.email}:c;
+      setActiveCoach(merged);
+      setLoginErr("");
+    }else setLoginErr("Code not found. Contact Johnny.");
+  };
   const myShifts=activeCoach?shifts.filter(s=>s.claimedBy===activeCoach.id):[];
   const openForMe=activeCoach?shifts.filter(s=>s.status==="open"&&(availability[activeCoach.id]||[]).includes(s.day)):[];
   const toggleDay=d=>{if(!activeCoach)return;setAvailability(p=>{const c=p[activeCoach.id]||[];return{...p,[activeCoach.id]:c.includes(d)?c.filter(x=>x!==d):[...c,d]};});};
