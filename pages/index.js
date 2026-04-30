@@ -427,7 +427,7 @@ export default function App(){
           to:sn(r.to_name||""),
           phone:fp(r.to_phone||""),
           msg:r.message||"",
-          time:r.created_at?new Date(r.created_at).toLocaleString():""
+          time:r.sent_at?new Date(r.sent_at).toLocaleString():""
         })));
       }
     }catch(e){/* ignore */}
