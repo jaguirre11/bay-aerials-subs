@@ -417,7 +417,45 @@ export default function App(){
     }finally{setLoadingCoaches(false);}
   },[]);
 
-  useEffect(()=>{fetchDbCoaches();fetchSchedule();},[fetchDbCoaches,fetchSchedule]);
+  const fetchSmsLog=useCallback(async()=>{
+    try{
+      const res=await fetch("/api/sms-log");
+      const data=await res.json();
+      if(res.ok&&Array.isArray(data)){
+        // Map DB rows into the same shape the UI expects
+        setSmsLog(data.map(r=>({
+          to:sn(r.to_name||""),
+          phone:fp(r.to_phone||""),
+          msg:r.message||"",
+          time:r.created_at?new Date(r.created_at).toLocaleString():""
+        })));
+      }
+    }catch(e){/* ignore */}
+  },[]);
+
+  const fetchShiftsFromDb=useCallback(async()=>{
+    try{
+      const res=await fetch("/api/shifts");
+      const data=await res.json();
+      if(res.ok&&Array.isArray(data)){
+        // Map DB rows (snake_case) to frontend shape (camelCase)
+        setShifts(data.map(r=>({
+          id:r.id,
+          instructorName:r.instructor_name,
+          date:r.date,
+          day:r.day,
+          time:r.time,
+          cls:r.cls,
+          notes:r.notes,
+          status:r.status,
+          claimedBy:r.claimed_by_id,
+          claimedByName:r.claimed_by_name
+        })));
+      }
+    }catch(e){/* ignore */}
+  },[]);
+
+  useEffect(()=>{fetchDbCoaches();fetchSchedule();fetchShiftsFromDb();fetchSmsLog();},[fetchDbCoaches,fetchSchedule,fetchShiftsFromDb,fetchSmsLog]);
 
   const baseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+weekOffset*7);return d;},[weekOffset]);
   const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[baseDate]);
@@ -445,37 +483,42 @@ export default function App(){
     });
   };
 
-  const postShift=()=>{
+  const postShift=async()=>{
     if(!form.instructorName||!form.date||selectedClasses.length===0)return;
     const date=form.date;
 
-    // Add a shift for each selected class
-    const newShifts=selectedClasses.map(({cls,time})=>({
-      id:Date.now()+Math.random(),instructorName:form.instructorName,
-      date,day:form.day,time,cls,notes:form.notes,
-      status:"open",claimedBy:null,claimedByName:null
-    }));
-    setShifts(p=>[...p,...newShifts]);
-
-    // Find eligible coaches across ALL selected time slots
-    // A coach is eligible if they're free for ALL the selected times
+    // Find eligible coaches (free during ALL selected times that day)
     const eligible=coaches.filter(c=>{
       if(c.name===form.instructorName)return false;
       if(!(availability[c.id]||[]).includes(form.day))return false;
-      // Check they're not teaching during any of the selected times
       return selectedClasses.every(({time})=>
         !schedule.some(r=>r.name===c.name&&r.day===form.day&&r.time===time)
       );
     });
 
-    // Send ONE text per coach listing ALL the classes
-    const dateStr=new Date(form.date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
-    const classList=selectedClasses.map(({time,cls})=>`  • ${time} – ${cls}`).join("\n");
-    eligible.forEach(c=>{
-      const ct=STAFF_CONTACTS[c.name]||{};
-      const msg=`Bay Aerials: Sub needed ${dateStr}!\n${classList}\nCovering: ${sn(form.instructorName)}\nCode: ${c.code}`;
-      setSmsLog(p=>[{to:sn(c.name),phone:fp(ct.phone||""),msg,time:new Date().toLocaleTimeString()},...p]);
-    });
+    try{
+      // 1. Save each selected class as a shift in the DB
+      const created=[];
+      for(const {cls,time} of selectedClasses){
+        const res=await fetch("/api/shifts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({instructor_name:form.instructorName,date,day:form.day,time,cls,notes:form.notes})});
+        if(res.ok){const data=await res.json();created.push(data);}
+      }
+
+      // 2. Notify eligible coaches in ONE batched text covering all the new shift IDs
+      if(created.length>0&&eligible.length>0){
+        await fetch("/api/notify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          shift_ids:created.map(s=>s.id),
+          coaches:eligible.map(c=>({id:c.id,name:c.name,phone:c.phone,email:c.email,code:c.code}))
+        })});
+      }
+
+      // 3. Refresh shifts and SMS log from DB
+      await fetchShiftsFromDb();
+      await fetchSmsLog();
+    }catch(e){
+      console.error("Post shift failed:",e);
+      alert("Could not post shift. Check connection and try again.");
+    }
 
     setShowPost(false);
     setForm({instructorName:"",day:"",date:"",time:"",cls:"",notes:""});
@@ -501,9 +544,27 @@ export default function App(){
 
   const resetCallout=()=>{setShowCallout(false);setCalloutDay("");setCalloutDate("");setCalloutWeekOffset(0);setCalloutClasses([]);setCalloutNote("");setCalloutSent(false);};
 
-  const claimShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
-  const confirmShift=(id)=>setShifts(p=>p.map(s=>s.id===id?{...s,status:"confirmed"}:s));
-  const removeShift=(id)=>setShifts(p=>p.filter(s=>s.id!==id));
+  const claimShift=async(id)=>{
+    setShifts(p=>p.map(s=>s.id===id?{...s,status:"claimed",claimedBy:activeCoach.id,claimedByName:activeCoach.name}:s));
+    try{
+      await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shift_id:id,action:"claim",coach_id:activeCoach.id,coach_name:activeCoach.name})});
+      fetchSmsLog();
+    }catch(e){console.error("Claim API failed:",e);}
+  };
+  const confirmShift=async(id)=>{
+    setShifts(p=>p.map(s=>s.id===id?{...s,status:"confirmed"}:s));
+    try{
+      await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({shift_id:id,action:"confirm"})});
+      fetchSmsLog();
+    }catch(e){console.error("Confirm API failed:",e);}
+  };
+  const removeShift=async(id)=>{
+    setShifts(p=>p.filter(s=>s.id!==id));
+    try{
+      await fetch(`/api/shifts?id=${id}`,{method:"DELETE"});
+      fetchSmsLog();
+    }catch(e){console.error("Remove shift API failed:",e);}
+  };
   const assignSub=(shift,coach)=>{setShifts(p=>p.map(s=>s.id===shift.id?{...s,status:"claimed",claimedBy:coach.id,claimedByName:coach.name}:s));setFindSubShift(null);};
   const loginCoach=()=>{const c=coaches.find(x=>x.code===coachCode.toUpperCase().trim());if(c){setActiveCoach(c);setLoginErr("");}else setLoginErr("Code not found. Contact Johnny.");};
   const myShifts=activeCoach?shifts.filter(s=>s.claimedBy===activeCoach.id):[];
@@ -791,6 +852,9 @@ export default function App(){
           {/* SMS */}
           {adminTab==="sms"&&(
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",justifyContent:"flex-end"}}>
+                <button onClick={fetchSmsLog} style={{background:C.bg2,border:`1px solid ${C.border}`,borderRadius:C.radiusSm,padding:"4px 10px",fontSize:11,cursor:"pointer",color:C.text2}}>↻ Refresh</button>
+              </div>
               {smsLog.length===0&&<div style={{...card,textAlign:"center",color:C.text2,padding:"2rem"}}>No messages yet.</div>}
               {smsLog.map((m,i)=>(
                 <div key={i} style={card}>
