@@ -53,8 +53,63 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { shift_id, shift_ids, coaches } = req.body;
+  const { shift_id, shift_ids, coaches, callout_admin, callout_coach_name, callout_note } = req.body;
 
+  // CALL-OUT admin notification path: text Julia/Monica that a coach called out
+  if (callout_admin) {
+    if (!shift_ids || shift_ids.length === 0) {
+      return res.status(400).json({ error: 'shift_ids required for call-out admin notification' });
+    }
+
+    if (!isWithinTextingHours()) {
+      return res.status(200).json({ sent: 0, blocked: true, reason: 'Outside texting hours' });
+    }
+
+    const { data: shifts, error: sErr } = await supabaseAdmin
+      .from('shifts')
+      .select('*')
+      .in('id', shift_ids);
+
+    if (sErr) return res.status(500).json({ error: sErr.message });
+    if (!shifts || shifts.length === 0) return res.status(404).json({ error: 'No shifts found' });
+
+    const dateStr = formatLongDate(shifts[0].date);
+    const sorted = [...shifts].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const classList = sorted.map(s => `  • ${s.time} – ${s.cls}`).join('\n');
+    const coachShort = shortName(callout_coach_name || shifts[0].instructor_name);
+
+    const adminMsg =
+      `⚠️ Bay Aerials call-out:\n` +
+      `${coachShort} — ${dateStr}\n` +
+      `${classList}\n` +
+      (callout_note ? `Note: ${callout_note}\n` : '') +
+      `Subs already notified.`;
+
+    const adminPhones = (process.env.ADMIN_PHONES || process.env.ADMIN_PHONE || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+
+    const adminResults = [];
+    for (const phone of adminPhones) {
+      let result;
+      if (TEST_MODE) {
+        console.log(`[TEST MODE] Would send to Admin (${phone}): ${adminMsg}`);
+        result = { success: true, testMode: true };
+      } else {
+        result = await sendSMS(phone, adminMsg);
+      }
+      await supabaseAdmin.from('sms_log').insert([{
+        to_name: 'Admin (call-out)',
+        to_phone: TEST_MODE ? `[TEST] ${phone}` : phone,
+        message: TEST_MODE ? `[TEST MODE - NOT SENT] ${adminMsg}` : adminMsg,
+        shift_id: shift_ids[0],
+      }]);
+      adminResults.push(result);
+    }
+
+    return res.status(200).json({ sent: adminResults.length, testMode: TEST_MODE, results: adminResults });
+  }
+
+  // STANDARD post-shift / sub-needed notification path
   if ((!shift_id && !shift_ids) || !coaches?.length) {
     return res.status(400).json({ error: 'shift_id (or shift_ids) and coaches are required' });
   }
