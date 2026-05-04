@@ -458,7 +458,7 @@ export default function App(){
   useEffect(()=>{fetchDbCoaches();fetchSchedule();fetchShiftsFromDb();fetchSmsLog();},[fetchDbCoaches,fetchSchedule,fetchShiftsFromDb,fetchSmsLog]);
 
   const baseDate=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-d.getDay()+weekOffset*7);return d;},[weekOffset]);
-  const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toISOString().slice(0,10);});return m;},[baseDate]);
+  const weekDates=useMemo(()=>{const m={};DAY_ORDER.forEach((d,i)=>{const dt=new Date(baseDate);dt.setDate(baseDate.getDate()+i);m[d]=dt.toLocaleDateString('en-CA');});return m;},[baseDate]);
   const fmtRange=()=>{const e=new Date(baseDate);e.setDate(baseDate.getDate()+6);return`${baseDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})} – ${e.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`;};
 
   const iSched=useMemo(()=>form.instructorName?schedule.filter(r=>r.name===form.instructorName):[],[form.instructorName,schedule]);
