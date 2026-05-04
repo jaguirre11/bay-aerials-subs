@@ -1146,9 +1146,49 @@ export default function App(){
                     <label style={{fontSize:11,fontWeight:600,color:C.text2}}>Reason / note (optional)</label>
                     <input value={calloutNote} onChange={e=>setCalloutNote(e.target.value)} placeholder="e.g. sick, family emergency..." style={inp}/>
                   </div>
-                  <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:C.radiusSm,padding:"8px 10px",fontSize:11,color:"#92400e"}}>
-                    Management will be notified and will arrange a sub. You don't need to find one.
-                  </div>
+                  {(()=>{
+                    // Late-night warning: if current Pacific hour is outside 8AM-8PM, SMS won't fire until morning
+                    const pacificHour=parseInt(new Date().toLocaleString("en-US",{timeZone:"America/Los_Angeles",hour:"numeric",hour12:false}));
+                    const isLateNight=pacificHour>=20||pacificHour<8;
+                    // 2-hour minimum notice check
+                    let tooSoon=false;
+                    if(calloutDate&&calloutClasses.length>0){
+                      const today=new Date();
+                      const todayIso=today.toLocaleDateString("en-CA",{timeZone:"America/Los_Angeles"});
+                      if(calloutDate===todayIso){
+                        // Find earliest class time today
+                        const earliest=calloutClasses.map(c=>c.time.split(" - ")[0]).sort()[0];
+                        if(earliest){
+                          const [time,ampm]=earliest.match(/^([\d:]+)(AM|PM)$/)?.slice(1)||[];
+                          if(time&&ampm){
+                            let [h,m]=(time+":00").split(":").map(Number);
+                            if(ampm==="PM"&&h!==12)h+=12;
+                            if(ampm==="AM"&&h===12)h=0;
+                            const classMs=new Date(calloutDate+"T00:00:00").setHours(h,m||0,0,0);
+                            const nowMs=Date.now();
+                            tooSoon=(classMs-nowMs)<2*60*60*1000;
+                          }
+                        }
+                      }
+                    }
+                    return(
+                      <>
+                        <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:C.radiusSm,padding:"8px 10px",fontSize:11,color:"#92400e"}}>
+                          Management will be notified and will arrange a sub. You don't need to find one.
+                        </div>
+                        {isLateNight&&(
+                          <div style={{background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:C.radiusSm,padding:"8px 10px",fontSize:11,color:"#78350f",marginTop:6}}>
+                            ⏰ <strong>After 8 PM:</strong> Sub texts will send at 8 AM. For urgent coverage, call or text Admin directly.
+                          </div>
+                        )}
+                        {tooSoon&&(
+                          <div style={{background:C.red,border:`1px solid ${C.redBorder}`,borderRadius:C.radiusSm,padding:"8px 10px",fontSize:11,color:C.redText,marginTop:6}}>
+                            ⚠️ <strong>Less than 2 hours notice.</strong> You must also call or text Admin directly right now.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
                   <button onClick={resetCallout} style={{padding:"6px 14px",borderRadius:C.radiusSm,border:`1px solid ${C.border}`,background:C.bg2,cursor:"pointer",color:C.text2,fontSize:12}}>Cancel</button>
@@ -1359,31 +1399,47 @@ export default function App(){
       {/* PROTOCOL MODAL */}
       {showProtocol&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:16}}>
-          <div style={{background:C.bg,borderRadius:C.radius,border:`1px solid ${C.border}`,width:460,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{background:"#7c3aed",padding:"18px 22px",borderRadius:`${C.radius} ${C.radius} 0 0`}}>
+          <div style={{background:C.bg,borderRadius:C.radius,border:`1px solid ${C.border}`,width:480,maxWidth:"100%",maxHeight:"92vh",overflowY:"auto"}}>
+            <div style={{background:"#7c3aed",padding:"18px 22px",borderRadius:`${C.radius} ${C.radius} 0 0`,position:"sticky",top:0,zIndex:1}}>
               <div style={{fontWeight:700,fontSize:17,color:"#fff",marginBottom:2}}>Sub Call-Out Protocol</div>
-              <div style={{fontSize:11,color:"#c4b5fd"}}>Bay Aerials — Follow this process every time.</div>
+              <div style={{fontSize:11,color:"#c4b5fd"}}>Bay Aerials — Updated for the Sub Scheduler app. Follow this process every time.</div>
             </div>
             <div style={{padding:"18px 22px"}}>
-              {[{n:"01",t:"Coach texts manager/owner",d:"All call-outs route through the manager — not the group chat. Minimum notice: 2 hours before class."},
-                {n:"02",t:"Manager marks call-out in app",d:"Open today's schedule, find the class, tap 'Mark Call-Out'. Class flips to red until covered."},
-                {n:"03",t:"App surfaces available subs",d:"Only coaches NOT already teaching during that time slot are shown."},
-                {n:"04",t:"Manager contacts subs in order",d:"Work down the list by seniority, certification match, and fairness. First confirmed sub gets it."},
-                {n:"05",t:"Assign + confirm in app",d:"Tap coach's name → add note → Confirm Sub. Class flips to green."},
-                {n:"06",t:"If uncovered",d:"Manager covers personally OR notify families 60+ min before class with credit/makeup option."},
-                {n:"07",t:"Post-class",d:"Sub logs hours in iClassPro same as a normal shift. Manager notes swap for weekly payroll review."},
-              ].map(s=>(<div key={s.n} style={{display:"flex",gap:12,marginBottom:14}}>
-                <div style={{background:"#7c3aed",color:"#fff",borderRadius:"50%",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0}}>{s.n}</div>
-                <div><div style={{fontWeight:600,fontSize:12,marginBottom:2}}>{s.t}</div><div style={{fontSize:11,color:C.text2,lineHeight:1.6}}>{s.d}</div></div>
-              </div>))}
-              <div style={{background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:C.radiusSm,padding:"12px 14px",marginBottom:14}}>
-                <div style={{fontWeight:700,fontSize:11,color:"#7c3aed",marginBottom:6,textTransform:"uppercase"}}>Key Rules</div>
-                {["Coaches do NOT find their own subs — manager owns the process.","Every call-out gets logged, even if covered.","Same-day no-shows: document in the note field for HR follow-up."].map((r,i)=>(
-                  <div key={i} style={{display:"flex",gap:6,marginBottom:i<2?5:0,fontSize:11,color:"#6d28d9"}}><span style={{fontWeight:700}}>→</span><span>{r}</span></div>
+              {[
+                {n:"01",t:"Coach calls out in the app",d:"Coaches log in at bay-aerials-subs.vercel.app with their personal code. Tap the 🚨 Call-Out button, pick the day from the calendar, select the affected classes, add an optional note (illness, emergency detail, etc.), and submit.\n\nMinimum notice: 2 hours before class. Same-day call-outs after that window must also call or text Admin directly."},
+                {n:"02",t:"App auto-notifies eligible subs",d:"As soon as the call-out is submitted, the app texts every coach who is (a) available that day and (b) not already teaching at that time. The text shows the date, classes, original instructor, and the sub's login code.\n\nManager does NOT need to manually post the shift — the app does it."},
+                {n:"03",t:"App auto-notifies Admin",d:"Admin receives a separate alert text identifying who called out, the affected classes, and any note from the coach. This is the trigger to start tracking coverage."},
+                {n:"04",t:"Subs claim in the app",d:"Eligible coaches log in with their code and tap Claim on the open shift. The app texts Admin that the shift was claimed, and texts the claiming coach a "we got your claim" confirmation.\n\nFirst confirmed claim wins. If multiple coaches claim before Admin confirms, Admin picks based on seniority, certification match, and fairness."},
+                {n:"05",t:"Admin confirms the sub",d:"In the admin panel, open the claimed shift and tap Confirm. The app texts the confirmed sub: "You're confirmed as sub! ✅" with the date, time, class, and any notes.\n\nIf the claim sits unconfirmed for 4 hours, the app sends Admin a reminder text automatically."},
+                {n:"06",t:"Day-of reminder",d:"The morning of the shift, the app texts the confirmed sub a reminder with time, class, who they're covering, and any notes."},
+                {n:"07",t:"If no one claims",d:"Admin uses Find a Sub in the admin panel to manually assign a coach. The assigned coach receives the same claim/confirm texts as if they had claimed it themselves.\n\nIf still uncovered: Admin covers personally OR notifies families 60+ minutes before class with credit/makeup option."},
+                {n:"08",t:"If the call-out is reversed",d:"If the original instructor recovers and can teach after all, Admin taps Remove on the shift in the admin panel. The app automatically texts the claimed/confirmed sub that they're no longer needed."},
+                {n:"09",t:"Post-class",d:"Sub logs hours in iClassPro same as a normal shift. The app keeps a permanent SMS log (admin → SMS Log tab) of every text sent for weekly payroll review and dispute resolution."},
+              ].map(s=>(
+                <div key={s.n} style={{display:"flex",gap:12,marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${C.bg3}`}}>
+                  <div style={{background:"#7c3aed",color:"#fff",borderRadius:"50%",width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0,marginTop:1}}>{s.n}</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:12,marginBottom:4,color:C.text}}>{s.t}</div>
+                    <div style={{fontSize:11,color:C.text2,lineHeight:1.7,whiteSpace:"pre-line"}}>{s.d}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:C.radiusSm,padding:"14px 16px",marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:11,color:"#7c3aed",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Key Rules</div>
+                {[
+                  "Coaches do NOT find their own subs — the app and Admin own the process.",
+                  "Every call-out is logged in the app automatically — no separate paperwork.",
+                  "Same-day no-shows: document in the note field at call-out submission for HR follow-up.",
+                  "Texts are only sent between 8 AM and 8 PM Pacific. Late-night call-outs queue until morning, so anything urgent after 8 PM must be a direct call to Admin.",
+                  "Coach phone numbers and login codes are managed in the admin panel under Manage. Keep them current — coaches with no phone in the system will not receive sub-needed texts.",
+                ].map((r,i,arr)=>(
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:i<arr.length-1?7:0,fontSize:11,color:"#6d28d9",lineHeight:1.6}}>
+                    <span style={{fontWeight:700,flexShrink:0}}>→</span><span>{r}</span>
+                  </div>
                 ))}
               </div>
-              <button onClick={()=>setShowProtocol(false)} style={{width:"100%",padding:9,background:"#7c3aed",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:700,fontSize:13,cursor:"pointer"}}>Got It</button>
-              <div style={{textAlign:"center",fontSize:9,color:C.text3,marginTop:8}}>Bay Aerials Gymnastics — Sub Ops v1.0</div>
+              <button onClick={()=>setShowProtocol(false)} style={{width:"100%",padding:10,background:"#7c3aed",color:"#fff",border:"none",borderRadius:C.radiusSm,fontWeight:700,fontSize:13,cursor:"pointer"}}>Got It</button>
+              <div style={{textAlign:"center",fontSize:9,color:C.text3,marginTop:10}}>Bay Aerials Gymnastics — Sub Ops v2.0</div>
             </div>
           </div>
         </div>
