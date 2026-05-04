@@ -850,7 +850,7 @@ export default function App(){
                 return(
                   <div style={{marginTop:14,border:`1px solid ${C.blueBorder}`,borderRadius:C.radius,overflow:"hidden"}}>
                     <div style={{background:C.blue,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div style={{fontWeight:600,fontSize:13,color:C.blueText}}>📋 {printDay} · {dateStr}</div>
+                      <div style={{fontWeight:600,fontSize:13,color:C.blueText}}>📋 {dateStr}</div>
                       <button onClick={()=>setPrintDay(null)} style={{background:"transparent",border:`1px solid ${C.blueBorder}`,borderRadius:C.radiusSm,padding:"3px 8px",fontSize:11,cursor:"pointer",color:C.blueText}}>✕</button>
                     </div>
                     <div style={{padding:10}}>
