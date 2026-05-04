@@ -15,7 +15,6 @@ function shortName(fullName) {
   return fullName;
 }
 
-// Only send texts between 8 AM and 8 PM Pacific time
 function isWithinTextingHours() {
   const now = new Date();
   const pacificHour = parseInt(
@@ -55,7 +54,7 @@ export default async function handler(req, res) {
 
   const { shift_id, shift_ids, coaches, callout_admin, callout_coach_name, callout_note } = req.body;
 
-  // CALL-OUT admin notification path: text Julia/Monica that a coach called out
+  // CALL-OUT admin notification path: text Admin that a coach called out
   if (callout_admin) {
     if (!shift_ids || shift_ids.length === 0) {
       return res.status(400).json({ error: 'shift_ids required for call-out admin notification' });
@@ -85,28 +84,26 @@ export default async function handler(req, res) {
       (callout_note ? `Note: ${callout_note}\n` : '') +
       `Subs already notified.`;
 
-    const adminPhones = (process.env.ADMIN_PHONES || process.env.ADMIN_PHONE || '')
-      .split(',').map(s => s.trim()).filter(Boolean);
-
-    const adminResults = [];
-    for (const phone of adminPhones) {
+    const adminPhone = process.env.ADMIN_PHONE;
+    const results = [];
+    if (adminPhone) {
       let result;
       if (TEST_MODE) {
-        console.log(`[TEST MODE] Would send to Admin (${phone}): ${adminMsg}`);
+        console.log(`[TEST MODE] Would text Admin (${adminPhone}): ${adminMsg}`);
         result = { success: true, testMode: true };
       } else {
-        result = await sendSMS(phone, adminMsg);
+        result = await sendSMS(adminPhone, adminMsg);
       }
       await supabaseAdmin.from('sms_log').insert([{
         to_name: 'Admin (call-out)',
-        to_phone: TEST_MODE ? `[TEST] ${phone}` : phone,
+        to_phone: TEST_MODE ? `[TEST] ${adminPhone}` : adminPhone,
         message: TEST_MODE ? `[TEST MODE - NOT SENT] ${adminMsg}` : adminMsg,
         shift_id: shift_ids[0],
       }]);
-      adminResults.push(result);
+      results.push({ recipient: 'Admin', ...result });
     }
 
-    return res.status(200).json({ sent: adminResults.length, testMode: TEST_MODE, results: adminResults });
+    return res.status(200).json({ sent: results.length, testMode: TEST_MODE, results });
   }
 
   // STANDARD post-shift / sub-needed notification path
